@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Product validation
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100
+        && data.price is number && data.price >= 0
+        && data.quantity is number && data.quantity >= 0
+        && data.category is string
+        && (data.get('trackInventory', true) is bool);
+    }
+
+    function isValidCashMovement(data) {
+      return data.amount is number && data.amount >= 0
+        && data.type in ['in', 'out']
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 500
+        && data.userId == request.auth.uid
+        && data.createdAt == request.time
+        && data.get('isSettled', false) == false;
+    }
+
+    function isStillValidCashMovement(data) {
+      return data.amount is number && data.amount >= 0
+        && data.type in ['in', 'out']
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 500
+        && data.userId == resource.data.userId;
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidProduct(request.resource.data);
+      allow update: if isSignedIn() && isValidProduct(request.resource.data);
+      allow delete: if isSignedIn();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.name is string;
+      allow delete: if isSignedIn();
+    }
+
+    match /transactions/{transactionId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.totalAmount is number
+        && request.resource.data.get('isSettled', false) == false;
+      allow update: if isSignedIn() 
+        && resource.data.userId == request.auth.uid
+        && resource.data.get('isSettled', false) == false // Cannot update if already settled
+        && (
+          // Action: Void (Only for completed transactions)
+          (resource.data.status == 'completed' &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'voidReason', 'updatedAt']) && 
+           request.resource.data.status == 'void' &&
+           request.time.year() == resource.data.createdAt.year() &&
+           request.time.month() == resource.data.createdAt.month() &&
+           request.time.day() == resource.data.createdAt.day())
+          ||
+          // Action: Update Pending (Can edit or complete a pending bill)
+          (resource.data.status == 'pending' &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'items', 'totalAmount', 'paymentMethod', 'customerName', 
+             'cashReceived', 'change', 'status', 'updatedAt'
+           ]))
+          ||
+          // Action: Lock (Settle)
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSettled', 'updatedAt']) &&
+           request.resource.data.isSettled == true)
+        );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /cash_movements/{movementId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCashMovement(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+        && resource.data.get('isSettled', false) == false
+        && (
+          // Action: Edit
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'description', 'type', 'updatedAt']) &&
+           isStillValidCashMovement(request.resource.data))
+          ||
+          // Action: Settle
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSettled', 'updatedAt']) &&
+           request.resource.data.isSettled == true)
+        );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /settlements/{settlementId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
