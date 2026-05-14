@@ -11,8 +11,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isVerified() && request.auth.uid == userId;
     }
 
     function isValidId(id) {
@@ -25,6 +29,7 @@ service cloud.firestore {
         && data.price is number && data.price >= 0
         && data.quantity is number && data.quantity >= 0
         && data.category is string
+        && data.userId == request.auth.uid
         && (data.get('trackInventory', true) is bool);
     }
 
@@ -45,26 +50,28 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidProduct(request.resource.data);
-      allow update: if isSignedIn() && isValidProduct(request.resource.data);
-      allow delete: if isSignedIn();
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() && isValidProduct(request.resource.data);
+      allow update: if isOwner(resource.data.get('userId', '')) && isValidProduct(request.resource.data);
+      allow delete: if isOwner(resource.data.get('userId', ''));
     }
 
     match /categories/{categoryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.name is string;
-      allow delete: if isSignedIn();
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.get('name', '') is string && request.resource.data.get('userId', '') == request.auth.uid;
+      allow delete: if isOwner(resource.data.get('userId', ''));
     }
 
     match /transactions/{transactionId} {
-      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() 
-        && request.resource.data.userId == request.auth.uid
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() 
+        && request.resource.data.get('userId', '') == request.auth.uid
         && request.resource.data.totalAmount is number
         && request.resource.data.get('isSettled', false) == false;
-      allow update: if isSignedIn() 
-        && resource.data.userId == request.auth.uid
+      allow update: if isOwner(resource.data.get('userId', '')) 
         && resource.data.get('isSettled', false) == false // Cannot update if already settled
         && (
           // Action: Void (Only for completed transactions)
@@ -86,13 +93,14 @@ service cloud.firestore {
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSettled', 'updatedAt']) &&
            request.resource.data.isSettled == true)
         );
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isOwner(resource.data.get('userId', ''));
     }
 
     match /cash_movements/{movementId} {
-      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidCashMovement(request.resource.data);
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() && isValidCashMovement(request.resource.data);
+      allow update: if isOwner(resource.data.get('userId', ''))
         && resource.data.get('isSettled', false) == false
         && (
           // Action: Edit
@@ -103,13 +111,14 @@ service cloud.firestore {
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSettled', 'updatedAt']) &&
            request.resource.data.isSettled == true)
         );
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isOwner(resource.data.get('userId', ''));
     }
 
     match /settlements/{settlementId} {
-      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow delete: if isOwner(resource.data.get('userId', ''));
     }
   }
 }

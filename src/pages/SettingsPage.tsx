@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ProductsPage from './ProductsPage';
 import { toast } from 'sonner';
-import { settlementsService, transactionsService, cashService } from '@/lib/data-service';
+import { settlementsService, transactionsService, cashService, productsService, categoriesService } from '@/lib/data-service';
 import { Settlement } from '@/types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -117,6 +117,8 @@ export default function SettingsPage() {
       const loadingToast = toast.loading('Sedang mereset data...');
       
       await Promise.all([
+        productsService.deleteAll(),
+        categoriesService.deleteAll(),
         transactionsService.deleteAll(),
         cashService.deleteAll(),
         settlementsService.deleteAll()

@@ -25,15 +25,28 @@ const CATEGORIES_COL = 'categories';
 
 export const productsService = {
   subscribe: (callback: (products: Product[]) => void) => {
-    return onSnapshot(collection(db, PRODUCTS_COL), (snapshot) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      callback([]);
+      return () => {};
+    }
+    const q = query(
+      collection(db, PRODUCTS_COL),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    return onSnapshot(q, (snapshot) => {
       const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
       callback(products);
     }, (error) => handleFirestoreError(error, OperationType.LIST, PRODUCTS_COL));
   },
-  add: async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+  add: async (product: Omit<Product, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
     try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("User not authenticated");
       return await addDoc(collection(db, PRODUCTS_COL), {
         ...product,
+        userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -74,6 +87,22 @@ export const productsService = {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${PRODUCTS_COL}/${id}`);
+    }
+  },
+  deleteAll: async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      const q = query(collection(db, PRODUCTS_COL), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) return;
+      
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, PRODUCTS_COL);
     }
   }
 };
@@ -239,14 +268,28 @@ export const transactionsService = {
 
 export const categoriesService = {
   subscribe: (callback: (categories: Category[]) => void) => {
-    return onSnapshot(collection(db, CATEGORIES_COL), (snapshot) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      callback([]);
+      return () => {};
+    }
+    const q = query(
+      collection(db, CATEGORIES_COL),
+      where('userId', '==', userId)
+    );
+    return onSnapshot(q, (snapshot) => {
       const categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
       callback(categories);
     }, (error) => handleFirestoreError(error, OperationType.LIST, CATEGORIES_COL));
   },
   add: async (name: string) => {
     try {
-      return await addDoc(collection(db, CATEGORIES_COL), { name });
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("User not authenticated");
+      return await addDoc(collection(db, CATEGORIES_COL), { 
+        name,
+        userId 
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, CATEGORIES_COL);
     }
@@ -256,6 +299,22 @@ export const categoriesService = {
       return await deleteDoc(doc(db, CATEGORIES_COL, id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `${CATEGORIES_COL}/${id}`);
+    }
+  },
+  deleteAll: async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      const q = query(collection(db, CATEGORIES_COL), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) return;
+      
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, CATEGORIES_COL);
     }
   }
 };

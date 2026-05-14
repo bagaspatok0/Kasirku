@@ -21,6 +21,7 @@ export interface FirestoreErrorInfo {
 
 export interface Product {
   id?: string;
+  userId: string;
   name: string;
   price: number;
   quantity: number;
@@ -59,6 +60,7 @@ export interface Transaction {
 
 export interface Category {
   id?: string;
+  userId: string;
   name: string;
 }
 
