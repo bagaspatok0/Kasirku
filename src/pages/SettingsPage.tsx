@@ -24,13 +24,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ProductsPage from './ProductsPage';
 import { toast } from 'sonner';
-import { settlementsService, transactionsService, cashService, productsService, categoriesService } from '@/lib/data-service';
+import { whitelistService, settlementsService, transactionsService, cashService, productsService, categoriesService } from '@/lib/data-service';
 import { Settlement } from '@/types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { auth } from '@/lib/firebase';
 
-type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue';
+type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue' | 'whitelist';
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('overview');
@@ -46,6 +47,22 @@ export default function SettingsPage() {
 
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
+
+  const [whitelistEmail, setWhitelistEmail] = useState('');
+  const isRootAdmin = auth.currentUser?.email === 'cssbagas@gmail.com';
+
+  const handleAddWhitelist = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!whitelistEmail) return;
+    
+    try {
+      await whitelistService.add(whitelistEmail);
+      toast.success('User berhasil ditambahkan ke whitelist');
+      setWhitelistEmail('');
+    } catch (error) {
+      toast.error('Gagal menambahkan user');
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -541,6 +558,46 @@ export default function SettingsPage() {
             )}
           </div>
         );
+      case 'whitelist':
+        return (
+          <div className="max-w-2xl mx-auto space-y-8">
+            <div className="flex items-center gap-4 mb-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setActiveSection('overview')}
+                className="rounded-full h-8 w-8"
+              >
+                <ChevronRight className="w-5 h-5 rotate-180" />
+              </Button>
+              <h2 className="text-2xl font-light tracking-tight">Manajemen Whitelist</h2>
+            </div>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-8 md:p-12">
+                <form onSubmit={handleAddWhitelist} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Email Google User</label>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300" />
+                      <Input 
+                        type="email"
+                        placeholder="customer@gmail.com" 
+                        className="pl-12 py-6 rounded-xl border-zinc-100 bg-zinc-50/30"
+                        value={whitelistEmail}
+                        onChange={(e) => setWhitelistEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl py-6 transition-all shadow-lg active:scale-95">
+                    Izinkan Akses Sekarang
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        );
       default:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -602,6 +659,23 @@ export default function SettingsPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {isRootAdmin && (
+              <Card 
+                className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
+                onClick={() => setActiveSection('whitelist')}
+              >
+                <CardContent className="p-8 flex flex-col items-center text-center">
+                  <div className="p-4 bg-blue-50 rounded-2xl mb-6 group-hover:scale-110 transition-transform shadow-sm">
+                    <ShieldCheck className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-medium text-zinc-900 mb-2">Manajemen Whitelist</h3>
+                  <p className="text-sm text-zinc-500 leading-relaxed">
+                    Hanya untuk Root Admin. Tambahkan user yang diizinkan menggunakan aplikasi.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             <Card 
               className={`transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md ${isResetConfirmOpen ? 'border-rose-500 bg-rose-50' : 'border-rose-100 bg-rose-50/10'}`}

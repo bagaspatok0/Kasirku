@@ -13,7 +13,8 @@ import {
   onSnapshot,
   runTransaction,
   getDoc,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { handleFirestoreError } from '@/lib/error-handler';
@@ -315,6 +316,34 @@ export const categoriesService = {
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, CATEGORIES_COL);
+    }
+  }
+};
+
+export const whitelistService = {
+  checkAccess: async (uid: string, email: string | null): Promise<boolean> => {
+    try {
+      if (!email) return false;
+      // Always allow the master admin
+      if (email === 'cssbagas@gmail.com') return true;
+      
+      const docRef = doc(db, 'whitelist', email.toLowerCase());
+      const snapshot = await getDoc(docRef);
+      return snapshot.exists();
+    } catch (error) {
+      console.error("Access Check Error:", error);
+      return false;
+    }
+  },
+  add: async (email: string) => {
+    try {
+      const emailLower = email.toLowerCase();
+      return await setDoc(doc(db, 'whitelist', emailLower), {
+        email: emailLower,
+        addedAt: serverTimestamp(),
+      });
+    } catch (error) {
+       handleFirestoreError(error, OperationType.CREATE, 'whitelist');
     }
   }
 };

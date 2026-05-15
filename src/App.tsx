@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, loginWithGoogle, logout } from '@/lib/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { whitelistService } from '@/lib/data-service';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
 import { 
@@ -26,6 +27,7 @@ type Page = 'cashier' | 'transactions' | 'settings' | 'activity';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isWhitelisted, setIsWhitelisted] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState<Page>('cashier');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -33,7 +35,13 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const allowed = await whitelistService.checkAccess(user.uid, user.email);
+        setIsWhitelisted(allowed);
+      } else {
+        setIsWhitelisted(false);
+      }
       setUser(user);
       setLoading(false);
     });
@@ -126,6 +134,30 @@ export default function App() {
             className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-full py-7 text-lg font-medium transition-all transform active:scale-95 shadow-lg"
           >
             Masuk dengan Google
+          </Button>
+        </div>
+        <Toaster position="top-center" />
+      </div>
+    );
+  }
+
+  if (user && !isWhitelisted) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#F5F5F5] font-sans p-6 text-center">
+        <div className="max-w-md w-full p-10 bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-zinc-100 flex flex-col items-center">
+          <div className="w-20 h-20 bg-red-500 rounded-3xl flex items-center justify-center mb-8">
+            <LogOut className="w-10 h-10 text-white" />
+          </div>
+          <h1 className="text-3xl font-light tracking-tight text-zinc-900 mb-3">Akses Ditolak</h1>
+          <p className="text-zinc-500 mb-10 leading-relaxed">
+            Akun Anda (<span className="font-medium text-zinc-900">{user.email}</span>) belum terdaftar dalam sistem akses KasirKu. Silakan hubungi administrator untuk verifikasi.
+          </p>
+          <Button 
+            onClick={handleLogout}
+            variant="outline"
+            className="w-full rounded-full py-7 text-lg font-medium border-zinc-200 hover:bg-zinc-50"
+          >
+            Keluar & Gunakan Akun Lain
           </Button>
         </div>
         <Toaster position="top-center" />

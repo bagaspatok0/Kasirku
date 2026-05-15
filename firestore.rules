@@ -120,5 +120,10 @@ service cloud.firestore {
       allow create: if isVerified() && request.resource.data.get('userId', '') == request.auth.uid;
       allow delete: if isOwner(resource.data.get('userId', ''));
     }
+
+    match /whitelist/{email} {
+      allow get: if isVerified();
+      allow write: if isVerified() && request.auth.token.email == 'cssbagas@gmail.com';
+    }
   }
 }
