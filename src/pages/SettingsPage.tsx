@@ -31,7 +31,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { auth } from '@/lib/firebase';
 
-type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue' | 'whitelist';
+type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue' | 'whitelist' | 'display';
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('overview');
@@ -134,17 +134,20 @@ export default function SettingsPage() {
       const loadingToast = toast.loading('Sedang mereset data...');
       
       await Promise.all([
-        productsService.deleteAll(),
-        categoriesService.deleteAll(),
         transactionsService.deleteAll(),
         cashService.deleteAll(),
         settlementsService.deleteAll()
       ]);
+
+      // Reset admin credentials to default
+      localStorage.removeItem('admin_config');
       
       toast.dismiss(loadingToast);
-      toast.success('Data berhasil direset sepenuhnya');
+      toast.success('Data riwayat dan dashboard berhasil direset');
       setIsResetConfirmOpen(false);
       setActiveSection('overview');
+      // Force logout to apply credential reset
+      handleLogout();
     } catch (error) {
       console.error(error);
       toast.error('Gagal mereset data');
@@ -258,6 +261,103 @@ export default function SettingsPage() {
 
   const renderSection = () => {
     switch (activeSection) {
+      case 'display':
+        return (
+          <div className="max-w-2xl mx-auto space-y-8">
+            <div className="flex items-center gap-4 mb-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setActiveSection('overview')}
+                className="rounded-full h-8 w-8"
+              >
+                <ChevronRight className="w-5 h-5 rotate-180" />
+              </Button>
+              <h2 className="text-2xl font-light tracking-tight">Tampilan Kasir</h2>
+            </div>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-8 md:p-12">
+                <div className="space-y-8">
+                  <div className="flex flex-col items-center mb-8">
+                    <div className="w-24 h-24 bg-zinc-100 rounded-3xl flex items-center justify-center mb-4 border-2 border-zinc-50 shadow-inner">
+                      <Layers className="w-10 h-10 text-zinc-300" />
+                    </div>
+                    <p className="text-sm text-zinc-400 font-medium tracking-tight">Pilih tata letak produk di halaman kasir</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div 
+                      className={`relative p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${
+                        (localStorage.getItem('cashier_layout') || 'list') === 'grid' 
+                        ? 'border-zinc-900 bg-zinc-50' 
+                        : 'border-zinc-100 hover:border-zinc-200'
+                      }`}
+                      onClick={() => {
+                        localStorage.setItem('cashier_layout', 'grid');
+                        toast.success('Tampilan produk diubah ke Kotak (Grid)');
+                        setActiveSection('display'); // Force re-render
+                      }}
+                    >
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="grid grid-cols-2 gap-1 w-10 h-10 mb-2">
+                          <div className="bg-zinc-300 rounded-[4px]"></div>
+                          <div className="bg-zinc-300 rounded-[4px]"></div>
+                          <div className="bg-zinc-300 rounded-[4px]"></div>
+                          <div className="bg-zinc-300 rounded-[4px]"></div>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Tampilan Kotak</h3>
+                        <p className="text-xs text-zinc-500">Produk berjejer menyamping dengan gambar besar.</p>
+                      </div>
+                      {(localStorage.getItem('cashier_layout') || 'list') === 'grid' && (
+                        <div className="absolute top-4 right-4 h-5 w-5 bg-zinc-900 rounded-full flex items-center justify-center">
+                          <ShieldCheck className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div 
+                      className={`relative p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${
+                        (localStorage.getItem('cashier_layout') || 'list') === 'list' 
+                        ? 'border-zinc-900 bg-zinc-50' 
+                        : 'border-zinc-100 hover:border-zinc-200'
+                      }`}
+                      onClick={() => {
+                        localStorage.setItem('cashier_layout', 'list');
+                        toast.success('Tampilan produk diubah ke Daftar (List)');
+                        setActiveSection('display'); // Force re-render
+                      }}
+                    >
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="flex flex-col gap-1.5 w-10 h-10 mb-2 justify-center">
+                          <div className="bg-zinc-300 h-2 rounded-[2px] w-full"></div>
+                          <div className="bg-zinc-300 h-2 rounded-[2px] w-full"></div>
+                          <div className="bg-zinc-300 h-2 rounded-[2px] w-full"></div>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Tampilan Daftar</h3>
+                        <p className="text-xs text-zinc-500">Produk tersusun ke bawah untuk pencarian cepat.</p>
+                      </div>
+                      {(localStorage.getItem('cashier_layout') || 'list') === 'list' && (
+                        <div className="absolute top-4 right-4 h-5 w-5 bg-zinc-900 rounded-full flex items-center justify-center">
+                          <ShieldCheck className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-6">
+                    <Button 
+                      className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl py-6"
+                      onClick={() => setActiveSection('overview')}
+                    >
+                      Selesai
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
       case 'products':
         return (
           <div className="space-y-6">
@@ -647,6 +747,21 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
+              onClick={() => setActiveSection('display')}
+            >
+              <CardContent className="p-8 flex flex-col items-center text-center">
+                <div className="p-4 bg-zinc-100 rounded-2xl mb-6 group-hover:scale-110 transition-transform shadow-sm">
+                  <Layers className="w-8 h-8 text-zinc-900" />
+                </div>
+                <h3 className="text-xl font-medium text-zinc-900 mb-2">Ubah Tampilan</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Pilih mode tampilan daftar atau kotak untuk halaman kasir.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card 
               className="border-zinc-100 opacity-50 cursor-not-allowed group rounded-3xl overflow-hidden shadow-sm"
             >
               <CardContent className="p-8 flex flex-col items-center text-center">
@@ -695,7 +810,7 @@ export default function SettingsPage() {
                   {isResetConfirmOpen ? 'YAKIN HAPUS?' : 'Reset Data'}
                 </h3>
                 <p className={`text-sm leading-relaxed font-medium ${isResetConfirmOpen ? 'text-rose-600' : 'text-rose-400'}`}>
-                  {isResetConfirmOpen ? 'Klik sekali lagi untuk menghapus semua riwayat transaksi & laporan.' : 'Hapus semua riwayat laporan, transaksi & catatan kas (Mulai dari Nol).'}
+                  {isResetConfirmOpen ? 'Klik sekali lagi untuk menghapus riwayat transaksi, dashboard & reset password admin.' : 'Hapus riwayat laporan, transaksi & catatan kas. (Produk & Kategori Tetap Aman).'}
                 </p>
                 {isResetConfirmOpen && (
                   <Button 

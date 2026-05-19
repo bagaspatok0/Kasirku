@@ -17,6 +17,7 @@ import {
   Info,
   CheckCircle2,
   XCircle,
+  PlusCircle,
   BarChart3,
   ListFilter
 } from 'lucide-react';
@@ -25,8 +26,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
-import { cashService, transactionsService, settlementsService } from '@/lib/data-service';
-import { CashMovement, Transaction, Settlement } from '@/types';
+import { cashService, transactionsService, settlementsService, productsService } from '@/lib/data-service';
+import { CashMovement, Transaction, Settlement, Product } from '@/types';
 import { toast } from 'sonner';
 
 type ActivityTab = 'cash' | 'sales' | 'settlement';
@@ -37,6 +38,7 @@ export default function ActivityPage() {
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   
   // Cash Movement Form
   const [amount, setAmount] = useState('');
@@ -61,6 +63,7 @@ export default function ActivityPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    const unsubProducts = productsService.subscribe(setProducts);
     const unsubMovements = cashService.getByDate(selectedDate, setMovements);
     const unsubSettlements = settlementsService.getByDate(selectedDate, setSettlements);
     const unsubTransactions = transactionsService.getByDate(selectedDate, (allTrans) => {
@@ -68,6 +71,7 @@ export default function ActivityPage() {
     });
 
     return () => {
+      unsubProducts();
       unsubMovements();
       unsubTransactions();
       unsubSettlements();
@@ -215,21 +219,27 @@ export default function ActivityPage() {
       sum + t.items.reduce((iSum, item) => iSum + item.quantity, 0), 0
     );
 
-    const itemsMap: Record<string, { count: number; revenue: number }> = {};
+    const itemsMap: Record<string, { name: string; count: number; revenue: number }> = {};
     activeTrans.forEach(t => {
       t.items.forEach(item => {
-        if (!itemsMap[item.name]) {
-          itemsMap[item.name] = { count: 0, revenue: 0 };
+        // Use productId as key to group items even if name changes
+        // Use current product name if available, fallback to item.name from transaction
+        const currentProduct = products.find(p => p.id === item.productId);
+        const displayName = currentProduct ? currentProduct.name : item.name;
+        const key = item.productId || item.name;
+
+        if (!itemsMap[key]) {
+          itemsMap[key] = { name: displayName, count: 0, revenue: 0 };
         }
-        itemsMap[item.name].count += item.quantity;
-        itemsMap[item.name].revenue += item.price * item.quantity;
+        itemsMap[key].count += item.quantity;
+        itemsMap[key].revenue += item.price * item.quantity;
       });
     });
 
     const sortedItems = Object.entries(itemsMap)
       .sort(([, a], [, b]) => b.count - a.count)
-      .map(([name, data]) => ({
-        name,
+      .map(([_, data]) => ({
+        name: data.name,
         count: data.count,
         revenue: data.revenue,
         percentage: totalItems > 0 ? (data.count / totalItems) * 100 : 0
@@ -716,15 +726,15 @@ export default function ActivityPage() {
                   </div>
                 ) : (
                   <div className="pt-6 space-y-4">
-                    <div className={`p-6 rounded-[2rem] border-2 ${settlements[0].difference === 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                    <div className={`p-6 rounded-[2rem] border-2 ${settlements[0].difference >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Selisih Kas</p>
-                          <p className={`text-2xl font-bold ${settlements[0].difference === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            Rp {settlements[0].difference.toLocaleString()}
+                          <p className={`text-2xl font-bold ${settlements[0].difference >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {settlements[0].difference > 0 ? '+' : ''}Rp {settlements[0].difference.toLocaleString()}
                           </p>
                         </div>
-                        {settlements[0].difference === 0 ? (
+                        {settlements[0].difference >= 0 ? (
                           <CheckCircle2 className="w-10 h-10 text-emerald-400" />
                         ) : (
                           <XCircle className="w-10 h-10 text-red-400" />
@@ -920,8 +930,8 @@ export default function ActivityPage() {
                </div>
                <div className="flex justify-between pt-2 border-t border-zinc-200">
                  <span className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Selisih</span>
-                 <span className={`font-bold ${Number(actualCashInput) - expectedCash === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                   Rp {(Number(actualCashInput) - expectedCash).toLocaleString()}
+                 <span className={`font-bold ${Number(actualCashInput) - expectedCash >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                   {Number(actualCashInput) - expectedCash > 0 ? '+' : ''}Rp {(Number(actualCashInput) - expectedCash).toLocaleString()}
                  </span>
                </div>
             </div>

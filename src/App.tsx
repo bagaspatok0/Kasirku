@@ -282,8 +282,8 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12">
-          <div className="max-w-7xl mx-auto w-full">
+        <div className={`flex-1 flex flex-col min-h-0 ${activePage === 'cashier' ? '' : 'overflow-y-auto p-4 md:p-6'}`}>
+          <div className={`max-w-7xl mx-auto w-full flex-1 flex flex-col min-h-0 ${activePage === 'cashier' ? 'p-4 md:p-6' : ''}`}>
             {activePage === 'cashier' && <CashierPage />}
             {activePage === 'transactions' && <TransactionsPage />}
             {activePage === 'activity' && <ActivityPage />}
