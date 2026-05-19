@@ -651,11 +651,11 @@ export default function ActivityPage() {
              </div>
   
              <div className="space-y-4 animate-in fade-in transition-all duration-300">
-                {showDetailedSummary && isSettledToday && settlements[0].soldItems && (
+                {showDetailedSummary && isSettledToday && settlements[0]?.soldItems && (
                   <div className="bg-zinc-50 rounded-3xl p-6 mb-6">
                     <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Item Terjual</h4>
                     <div className="space-y-3">
-                      {settlements[0].soldItems.map((item, idx) => (
+                      {settlements[0]?.soldItems?.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center text-sm">
                           <div className="flex gap-2">
                             <span className="text-zinc-400 font-bold">{item.quantity}x</span>
@@ -726,15 +726,15 @@ export default function ActivityPage() {
                   </div>
                 ) : (
                   <div className="pt-6 space-y-4">
-                    <div className={`p-6 rounded-[2rem] border-2 ${settlements[0].difference >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                    <div className={`p-6 rounded-[2rem] border-2 ${settlements[0]?.difference >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Selisih Kas</p>
-                          <p className={`text-2xl font-bold ${settlements[0].difference >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {settlements[0].difference > 0 ? '+' : ''}Rp {settlements[0].difference.toLocaleString()}
+                          <p className={`text-2xl font-bold ${settlements[0]?.difference >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {settlements[0]?.difference > 0 ? '+' : ''}Rp {settlements[0]?.difference.toLocaleString()}
                           </p>
                         </div>
-                        {settlements[0].difference >= 0 ? (
+                        {settlements[0]?.difference >= 0 ? (
                           <CheckCircle2 className="w-10 h-10 text-emerald-400" />
                         ) : (
                           <XCircle className="w-10 h-10 text-red-400" />
@@ -742,7 +742,7 @@ export default function ActivityPage() {
                       </div>
                       <div className="mt-4 pt-4 border-t border-zinc-100 flex justify-between text-sm">
                         <span className="text-zinc-500">Uang Fisik Terinput</span>
-                        <span className="font-bold text-zinc-900">Rp {settlements[0].actualCash.toLocaleString()}</span>
+                        <span className="font-bold text-zinc-900">Rp {settlements[0]?.actualCash.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>

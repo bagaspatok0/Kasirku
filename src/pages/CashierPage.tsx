@@ -296,17 +296,16 @@ export default function CashierPage() {
                           <h3 className="text-xs font-bold text-zinc-900 truncate tracking-tight">{product.name}</h3>
                           <Badge variant="secondary" className="bg-zinc-50 text-zinc-400 text-[8px] font-bold px-1 py-0 border-none shrink-0">{product.category}</Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-medium text-zinc-500">Rp {product.price.toLocaleString()}</span>
+                        <div className="flex flex-col mt-0.5">
                           {product.trackInventory !== false && (
                             <span className={`text-[9px] font-bold ${product.quantity > 5 ? 'text-zinc-400' : 'text-rose-500'}`}>
-                              • Stok: {product.quantity}
+                              Stok: {product.quantity}
                             </span>
                           )}
+                          <span className="text-[11px] font-black text-zinc-900">Rp {product.price.toLocaleString()}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 shrink-0 px-2">
-                        <span className="text-xs font-black text-zinc-900">Rp {product.price.toLocaleString()}</span>
                         <div className="w-8 h-8 rounded-lg bg-zinc-50 group-hover:bg-zinc-900 flex items-center justify-center transition-all">
                           <Plus className="w-4 h-4 text-zinc-400 group-hover:text-white transition-colors" />
                         </div>
@@ -336,13 +335,6 @@ export default function CashierPage() {
                         </div>
                       )}
                       
-                      {/* Price Badge Overlay */}
-                      <div className="absolute bottom-2 left-2 right-2">
-                         <div className="bg-zinc-900/90 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-center shadow-lg">
-                           <span className="text-[10px] font-black tracking-tight">Rp {product.price.toLocaleString()}</span>
-                         </div>
-                      </div>
-
                       {/* Add Button Overlay */}
                       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center shadow-lg">
@@ -351,24 +343,27 @@ export default function CashierPage() {
                       </div>
                     </div>
                     
-                    <div className="p-3 flex flex-col gap-1">
+                    <div className="p-3 flex flex-col gap-1 flex-1">
                       <div className="flex flex-col min-w-0">
                          <h3 className="text-xs font-bold text-zinc-900 truncate tracking-tight">{product.name}</h3>
                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-tight">{product.category}</span>
                       </div>
                       
-                      {product.trackInventory !== false && (
-                        <div className="mt-1">
-                          <Badge 
-                            variant="secondary" 
-                            className={`text-[8px] font-bold px-1.5 py-0 border-none ${
-                              product.quantity > 5 ? 'bg-zinc-50 text-zinc-400' : 'bg-rose-50 text-rose-500'
-                            }`}
-                          >
-                            Stok: {product.quantity}
-                          </Badge>
-                        </div>
-                      )}
+                      <div className="mt-auto space-y-1">
+                        {product.trackInventory !== false && (
+                          <div>
+                            <Badge 
+                              variant="secondary" 
+                              className={`text-[8px] font-bold px-1.5 py-0 border-none ${
+                                product.quantity > 5 ? 'bg-zinc-50 text-zinc-400' : 'bg-rose-50 text-rose-500'
+                              }`}
+                            >
+                              Stok: {product.quantity}
+                            </Badge>
+                          </div>
+                        )}
+                        <span className="text-[11px] font-black text-zinc-900 block">Rp {product.price.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
