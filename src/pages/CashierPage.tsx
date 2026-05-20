@@ -434,7 +434,7 @@ export default function CashierPage() {
       )}
 
       {/* Sidebar Cart */}
-      <aside className={`${mobileTab === 'cart' ? 'flex' : 'hidden md:flex'} w-full md:w-[360px] lg:w-[400px] flex-col shrink-0 min-h-0 bg-white md:bg-transparent border-l md:border-none border-zinc-100`}>
+      <aside className={`${mobileTab === 'cart' ? 'flex flex-1 min-h-0' : 'hidden md:flex'} w-full md:w-[360px] lg:w-[400px] flex-col shrink-0 md:shrink-0 bg-white md:bg-transparent border-l md:border-none border-zinc-100`}>
         <CartSection 
           cart={cart}
           customerName={customerName}
