@@ -12,6 +12,17 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --animate-bounce-short: bounce-short 1.2s ease-in-out infinite;
+
+    @keyframes bounce-short {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-3px);
+      }
+    }
+
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);

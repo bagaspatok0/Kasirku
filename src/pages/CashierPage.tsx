@@ -44,6 +44,7 @@ export default function CashierPage() {
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
 
   useEffect(() => {
     const savedLayout = localStorage.getItem('cashier_layout') as 'list' | 'grid';
@@ -238,9 +239,36 @@ export default function CashierPage() {
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row gap-6 min-h-0 overflow-hidden bg-zinc-50/30 p-0">
+    <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6 min-h-0 overflow-hidden bg-zinc-50/30 p-0 relative">
+      {/* Segmented Control for Mobile */}
+      <div className="flex md:hidden p-1 bg-zinc-100/80 backdrop-blur-md rounded-2xl gap-1 shrink-0 mx-4 mt-4 border border-zinc-200/50">
+        <button 
+          onClick={() => setMobileTab('products')} 
+          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-tight rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'products' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />
+          <span>Produk ({filteredProducts.length})</span>
+        </button>
+        <button 
+          onClick={() => setMobileTab('cart')} 
+          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-tight rounded-xl transition-all flex items-center justify-center gap-1.5 relative ${
+            mobileTab === 'cart' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          <span>Pesanan ({cart.reduce((sum, item) => sum + item.cartQuantity, 0)})</span>
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-white animate-bounce-short">
+              {cart.reduce((sum, item) => sum + item.cartQuantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Product Selection */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 p-4 md:p-0">
+      <div className={`${mobileTab === 'products' ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0 min-h-0 p-4 md:p-0`}>
         <div className="flex flex-col gap-4 mb-6 shrink-0">
           <div className="relative w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -380,8 +408,33 @@ export default function CashierPage() {
         </div>
       </div>
 
+      {/* Floating Cart Active Indicator on Mobile */}
+      {mobileTab === 'products' && cart.length > 0 && (
+        <div 
+          className="md:hidden fixed bottom-6 left-4 right-4 bg-zinc-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-40 cursor-pointer animate-in fade-in slide-in-from-bottom-6 duration-300 border border-zinc-800"
+          onClick={() => setMobileTab('cart')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-white/10 rounded-xl relative">
+              <ShoppingCart className="w-4 h-4 text-white animate-bounce-short" />
+              <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black h-4 w-4 rounded-full flex items-center justify-center border-2 border-zinc-900 shadow-sm">
+                {cart.reduce((sum, item) => sum + item.cartQuantity, 0)}
+              </span>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Total Belanja</p>
+              <p className="text-sm font-black">Rp {total.toLocaleString()}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/30 px-3 py-2 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest">
+            <span>Lihat Keranjang</span>
+            <span>➔</span>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar Cart */}
-      <aside className="w-full md:w-[360px] lg:w-[400px] flex flex-col shrink-0 min-h-0 bg-white md:bg-transparent border-l md:border-none border-zinc-100">
+      <aside className={`${mobileTab === 'cart' ? 'flex' : 'hidden md:flex'} w-full md:w-[360px] lg:w-[400px] flex-col shrink-0 min-h-0 bg-white md:bg-transparent border-l md:border-none border-zinc-100`}>
         <CartSection 
           cart={cart}
           customerName={customerName}
