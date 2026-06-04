@@ -544,8 +544,6 @@ export default function CashierPage() {
           cart={cart}
           customerName={customerName}
           setCustomerName={setCustomerName}
-          whatsappNumber={whatsappNumber}
-          setWhatsappNumber={setWhatsappNumber}
           pendingTransactions={pendingTransactions}
           selectedPendingId={selectedPendingId}
           loadPendingBill={loadPendingBill}
@@ -709,8 +707,6 @@ interface CartSectionProps {
   cart: CartItem[];
   customerName: string;
   setCustomerName: (name: string) => void;
-  whatsappNumber: string;
-  setWhatsappNumber: (num: string) => void;
   pendingTransactions: Transaction[];
   selectedPendingId: string | null;
   loadPendingBill: (t: Transaction) => void;
@@ -733,8 +729,6 @@ function CartSection({
   cart,
   customerName,
   setCustomerName,
-  whatsappNumber,
-  setWhatsappNumber,
   pendingTransactions,
   selectedPendingId,
   loadPendingBill,
@@ -777,7 +771,7 @@ function CartSection({
       <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 pt-6 pb-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 border-b border-zinc-50">
+            <div className="pb-2 border-b border-zinc-50">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nama Customer</label>
                 <div className="relative">
@@ -788,20 +782,6 @@ function CartSection({
                     className="w-full bg-zinc-50/50 border border-zinc-100 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nomor WhatsApp</label>
-                <div className="relative">
-                  <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-300" />
-                  <input 
-                    type="text" 
-                    placeholder="Contoh: 0812345678" 
-                    className="w-full bg-zinc-50/50 border border-zinc-100 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
                   />
                 </div>
               </div>
