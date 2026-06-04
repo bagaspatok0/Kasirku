@@ -86,7 +86,7 @@ service cloud.firestore {
           (resource.data.status == 'pending' &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
              'items', 'totalAmount', 'paymentMethod', 'customerName', 
-             'cashReceived', 'change', 'status', 'updatedAt'
+             'cashReceived', 'change', 'status', 'updatedAt', 'cashierName'
            ]))
           ||
           // Action: Lock (Settle)
@@ -118,6 +118,19 @@ service cloud.firestore {
       allow get: if isOwner(resource.data.get('userId', ''));
       allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
       allow create: if isVerified() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow delete: if isOwner(resource.data.get('userId', ''));
+    }
+
+    match /cashiers/{cashierId} {
+      allow get: if isOwner(resource.data.get('userId', ''));
+      allow list: if isSignedIn() && resource.data.get('userId', '') == request.auth.uid;
+      allow create: if isVerified() 
+        && request.resource.data.get('name', '') is string 
+        && request.resource.data.get('pin', '') is string 
+        && request.resource.data.get('userId', '') == request.auth.uid;
+      allow update: if isOwner(resource.data.get('userId', '')) 
+        && request.resource.data.get('name', '') is string 
+        && request.resource.data.get('pin', '') is string;
       allow delete: if isOwner(resource.data.get('userId', ''));
     }
 

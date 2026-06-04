@@ -49,6 +49,7 @@ export interface Transaction {
   totalAmount: number;
   paymentMethod: 'cash' | 'transfer' | 'qris';
   customerName?: string;
+  cashierName?: string; // name of the cashier
   cashReceived?: number;
   change?: number;
   status?: 'completed' | 'void' | 'pending';
@@ -56,6 +57,14 @@ export interface Transaction {
   createdAt: any;
   userId: string;
   isSettled?: boolean;
+}
+
+export interface CashierAccount {
+  id?: string;
+  userId: string;
+  name: string;
+  pin: string; // pin / password
+  createdAt?: any;
 }
 
 export interface Category {
@@ -72,6 +81,7 @@ export interface CashMovement {
   createdAt: any;
   userId: string;
   isSettled?: boolean;
+  cashierName?: string;
 }
 
 export interface Settlement {
@@ -88,6 +98,7 @@ export interface Settlement {
   actualCash: number;
   difference: number;
   createdAt: any;
+  cashierName?: string;
   soldItems?: {
     name: string;
     quantity: number;

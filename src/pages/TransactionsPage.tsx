@@ -36,8 +36,10 @@ import { Transaction, Product } from '@/types';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Printer } from 'lucide-react';
+import { getStoreInfo } from '@/lib/utils';
 
 export default function TransactionsPage() {
+  const storeInfo = getStoreInfo();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -309,7 +311,10 @@ export default function TransactionsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="text-zinc-900 font-semibold text-xs">{t.customerName || '-'}</span>
+                      <span className="text-zinc-900 font-semibold text-xs">{t.customerName || 'No Name'}</span>
+                      <span className="text-[10px] text-zinc-500 font-sans">
+                        Kasir: <span className="font-bold text-zinc-700">{t.cashierName || 'Admin'}</span>
+                      </span>
                       <span className="text-[9px] text-zinc-400 font-mono tracking-tighter">ID: {t.id?.slice(-8)}</span>
                     </div>
                   </TableCell>
@@ -411,6 +416,9 @@ export default function TransactionsPage() {
                       {t.paymentMethod === 'cash' ? 'Tunai' : t.paymentMethod === 'transfer' ? 'Transfer' : 'QRIS'}
                     </Badge>
                   </div>
+                  <span className="text-[10px] text-zinc-500 font-sans mt-0.5">
+                    Kasir: <span className="font-bold text-zinc-700">{t.cashierName || 'Admin'}</span>
+                  </span>
                 </div>
                 <div className="flex flex-col items-end">
                    <div className="flex gap-1 mb-1">
@@ -506,10 +514,14 @@ export default function TransactionsPage() {
                 )}
                 {selectedTransaction?.customerName && (
                   <p className="text-sm font-medium text-zinc-600 flex items-center gap-2">
-                    <User className="w-3.5 h-3.5" />
-                    {selectedTransaction.customerName}
+                    <User className="w-3.5 h-3.5 text-zinc-400" />
+                    Pelanggan: {selectedTransaction.customerName}
                   </p>
                 )}
+                <p className="text-sm font-medium text-zinc-600 flex items-center gap-2 mt-1">
+                  <User className="w-3.5 h-3.5 text-zinc-400" />
+                  Kasir: <span className="font-bold text-zinc-800">{selectedTransaction?.cashierName || 'Admin'}</span>
+                </p>
               </div>
             </DialogHeader>
 
@@ -605,9 +617,9 @@ export default function TransactionsPage() {
         {selectedTransaction && (
           <div className="max-w-[300px] mx-auto space-y-6">
             <div className="text-center space-y-1">
-              <h2 className="text-lg font-bold uppercase">KasirKu</h2>
-              <p className="text-[10px]">Jl. Contoh No. 123, Kota</p>
-              <p className="text-[10px]">Telp: 0812-3456-7890</p>
+              <h2 className="text-lg font-bold uppercase">{storeInfo.name}</h2>
+              {storeInfo.address && <p className="text-[10px]">{storeInfo.address}</p>}
+              {storeInfo.phone && <p className="text-[10px]">Telp: {storeInfo.phone}</p>}
             </div>
 
             <div className="border-b border-dashed border-black pb-2 space-y-1 text-[10px]">
@@ -621,7 +633,7 @@ export default function TransactionsPage() {
               </div>
               <div className="flex justify-between">
                 <span>Kasir:</span>
-                <span>Admin</span>
+                <span>{selectedTransaction.cashierName || 'Admin'}</span>
               </div>
               {selectedTransaction.customerName && (
                 <div className="flex justify-between">
@@ -668,10 +680,23 @@ export default function TransactionsPage() {
               )}
             </div>
 
-            <div className="text-center pt-6 space-y-1 opacity-80">
+            <div className="text-center pt-6 space-y-1 opacity-80 border-t border-dashed border-black mt-4">
               <p className="text-[10px] font-bold">TERIMA KASIH</p>
-              <p className="text-[9px]">Selamat Belanja Kembali</p>
-              <p className="text-[8px] italic mt-2">www.kasirku.id</p>
+              {storeInfo.footer && <p className="text-[9px]">{storeInfo.footer}</p>}
+              {(storeInfo.wifiName || storeInfo.mapsLink) && (
+                <div className="pt-2 border-t border-dotted border-black mt-2 text-[8px] space-y-0.5 text-left">
+                  {storeInfo.wifiName && (
+                    <p className="whitespace-nowrap overflow-hidden text-ellipsis">
+                      📶 WiFi: {storeInfo.wifiName} {storeInfo.wifiPassword ? `(Pwd: ${storeInfo.wifiPassword})` : ''}
+                    </p>
+                  )}
+                  {storeInfo.mapsLink && (
+                    <p className="whitespace-nowrap overflow-hidden text-ellipsis">
+                      📍 Maps: {storeInfo.mapsLink}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,15 +22,18 @@ import {
   ShoppingBag,
   Menu,
   CheckCircle2,
-  Printer
+  Printer,
+  MessageSquare
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { productsService, transactionsService, categoriesService } from '@/lib/data-service';
-import { Product, CartItem, Transaction } from '@/types';
+import { productsService, transactionsService, categoriesService, cashiersService } from '@/lib/data-service';
+import { Product, CartItem, Transaction, CashierAccount } from '@/types';
 import { toast } from 'sonner';
+import { getStoreInfo } from '@/lib/utils';
 
 export default function CashierPage() {
+  const storeInfo = getStoreInfo();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{id?: string, name: string}[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
@@ -45,6 +48,7 @@ export default function CashierPage() {
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
 
   useEffect(() => {
     const savedLayout = localStorage.getItem('cashier_layout') as 'list' | 'grid';
@@ -125,6 +129,95 @@ export default function CashierPage() {
     setSelectedPendingId(null);
   };
 
+  const formatPhoneNumber = (num: string) => {
+    let cleaned = num.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('+')) {
+      cleaned = cleaned.substring(1);
+    }
+    if (cleaned.startsWith('0')) {
+      cleaned = '62' + cleaned.substring(1);
+    }
+    if (cleaned.startsWith('8') && cleaned.length >= 9) {
+      cleaned = '62' + cleaned;
+    }
+    return cleaned;
+  };
+
+  const getWhatsAppReceiptText = (trans: Transaction) => {
+    const divider = "\n----------------------------------\n";
+    let text = `*${storeInfo.name.toUpperCase()}*\n`;
+    if (storeInfo.address) {
+      text += `${storeInfo.address}\n`;
+    }
+    if (storeInfo.phone) {
+      text += `Telp: ${storeInfo.phone}\n`;
+    }
+    text += `\n`;
+    
+    const shortId = trans.id ? (trans.id.length > 8 ? trans.id.slice(-6).toUpperCase() : trans.id) : 'BARU';
+    
+    let dateStr = '';
+    if (trans.createdAt) {
+      if (typeof trans.createdAt.toDate === 'function') {
+        dateStr = trans.createdAt.toDate().toLocaleString('id-ID');
+      } else if (trans.createdAt.seconds) {
+        dateStr = new Date(trans.createdAt.seconds * 1000).toLocaleString('id-ID');
+      } else {
+        dateStr = new Date(trans.createdAt).toLocaleString('id-ID');
+      }
+    } else {
+      dateStr = new Date().toLocaleString('id-ID');
+    }
+
+    text += `*No Bukti:* #${shortId}\n`;
+    text += `*Tanggal:* ${dateStr}\n`;
+    text += `*Kasir:* ${trans.cashierName || 'Admin'}\n`;
+    if (trans.customerName) {
+      text += `*Pelanggan:* ${trans.customerName}\n`;
+    }
+    text += divider;
+    
+    trans.items.forEach((item) => {
+      text += `*${item.name}*\n`;
+      text += `  ${item.quantity} x Rp ${item.price.toLocaleString('id-ID')} -> Rp ${(item.price * item.quantity).toLocaleString('id-ID')}\n`;
+    });
+    
+    text += divider;
+    text += `*TOTAL: Rp ${trans.totalAmount.toLocaleString('id-ID')}*\n`;
+    text += `*Metode Bayar:* ${trans.paymentMethod.toUpperCase()}\n`;
+    
+    if (trans.paymentMethod === 'cash') {
+      text += `*Diterima:* Rp ${(trans.cashReceived || 0).toLocaleString('id-ID')}\n`;
+      text += `*Kembalian:* Rp ${(trans.change || 0).toLocaleString('id-ID')}\n`;
+    }
+    
+    text += divider;
+    text += `*TERIMA KASIH*\n`;
+    if (storeInfo.footer) {
+      text += `${storeInfo.footer}\n`;
+    }
+    if (storeInfo.mapsLink) {
+      text += `📍 *Maps:* ${storeInfo.mapsLink}\n`;
+    }
+    if (storeInfo.wifiName) {
+      text += `📶 *WiFi:* ${storeInfo.wifiName}${storeInfo.wifiPassword ? ` (Pwd: ${storeInfo.wifiPassword})` : ''}\n`;
+    }
+    
+    return encodeURIComponent(text);
+  };
+
+  const handleSendWhatsAppReceipt = () => {
+    if (!lastTransaction) return;
+    const formattedPhone = formatPhoneNumber(whatsappNumber);
+    if (!formattedPhone || formattedPhone.length < 9) {
+      toast.error("Nomor WhatsApp tidak valid. Masukkan minimal 9 angka.");
+      return;
+    }
+    const text = getWhatsAppReceiptText(lastTransaction);
+    const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${text}`;
+    window.open(url, '_blank');
+  };
+
   const handleSaveBill = async () => {
     if (cart.length === 0) {
       toast.error("Keranjang kosong");
@@ -197,6 +290,8 @@ export default function CashierPage() {
       return;
     }
 
+    const cashierNameVal = localStorage.getItem('active_cashier_name') || 'Admin';
+
     try {
       const items = cart.map(item => ({
         productId: item.id!,
@@ -211,6 +306,7 @@ export default function CashierPage() {
         totalAmount: total,
         paymentMethod,
         customerName: customerName.trim(),
+        cashierName: cashierNameVal,
         cashReceived: paymentMethod === 'cash' ? (Number(cashReceived) || total) : null,
         change: paymentMethod === 'cash' ? (Number(cashReceived) - total || 0) : null,
         status: 'completed' as const,
@@ -229,8 +325,17 @@ export default function CashierPage() {
         }
       }
 
+      // Automatically trigger WhatsApp redirect if WhatsApp number is configured
+      const formattedPhone = formatPhoneNumber(whatsappNumber);
+      if (formattedPhone && formattedPhone.length >= 9) {
+        const text = getWhatsAppReceiptText(finalData as unknown as Transaction);
+        const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${text}`;
+        window.open(url, '_blank');
+        toast.success("Membuka WhatsApp untuk mengirim struk...");
+      }
+
       resetOrder();
-      setLastTransaction(finalData);
+      setLastTransaction(finalData as unknown as Transaction);
       setShowSuccessDialog(true);
       toast.success("Transaksi berhasil!");
     } catch (error) {
@@ -439,6 +544,8 @@ export default function CashierPage() {
           cart={cart}
           customerName={customerName}
           setCustomerName={setCustomerName}
+          whatsappNumber={whatsappNumber}
+          setWhatsappNumber={setWhatsappNumber}
           pendingTransactions={pendingTransactions}
           selectedPendingId={selectedPendingId}
           loadPendingBill={loadPendingBill}
@@ -460,28 +567,41 @@ export default function CashierPage() {
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="max-w-xs rounded-3xl p-6 overflow-hidden">
           <div className="flex flex-col items-center text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-zinc-900">Pembayaran Berhasil</h3>
-              <p className="text-xs text-zinc-500 font-medium">Transaksi telah disimpan</p>
+              <h3 className="text-base font-black text-zinc-900">Pembayaran Berhasil</h3>
+              <p className="text-[11px] text-zinc-500 font-medium">Transaksi telah disimpan</p>
+            </div>
+
+            <div className="w-full border-t border-zinc-100 pt-3 space-y-2 text-left">
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Kirim Struk WA (Uji Coba)</label>
+              <div className="flex gap-1.5">
+                <Input 
+                  type="text" 
+                  placeholder="Contoh: 0812345678"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="rounded-xl text-xs h-10 px-3 flex-1 border-zinc-200"
+                />
+                <Button 
+                  className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl h-10 w-10 shrink-0 p-0 flex items-center justify-center transition-all"
+                  onClick={handleSendWhatsAppReceipt}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-[9px] text-zinc-400 leading-tight">Membuka browser ke WhatsApp Web / Aplikasi WA</p>
             </div>
             
-            <div className="w-full space-y-2 pt-2">
+            <div className="w-full space-y-2 border-t border-zinc-100 pt-3">
               <Button 
-                className="w-full bg-zinc-900 text-white rounded-xl h-11 text-xs font-black uppercase tracking-widest gap-2"
+                className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl h-10 text-xs font-black uppercase tracking-widest"
                 onClick={() => {
-                   window.print();
+                  setShowSuccessDialog(false);
+                  setWhatsappNumber('');
                 }}
-              >
-                <Printer className="w-4 h-4" />
-                Cetak Struk
-              </Button>
-              <Button 
-                variant="outline"
-                className="w-full rounded-xl h-11 text-xs font-black uppercase tracking-widest border-zinc-200"
-                onClick={() => setShowSuccessDialog(false)}
               >
                 Tutup
               </Button>
@@ -490,14 +610,16 @@ export default function CashierPage() {
         </DialogContent>
       </Dialog>
 
+
+
       {/* Hidden Receipt for Printing */}
       <div className="print-only fixed inset-0 z-[9999] bg-white p-4 text-black text-[12px] font-mono leading-tight">
         {lastTransaction && (
           <div className="max-w-[300px] mx-auto space-y-6">
             <div className="text-center space-y-1">
-              <h2 className="text-lg font-bold uppercase">KasirKu</h2>
-              <p className="text-[10px]">Jl. Contoh No. 123, Kota</p>
-              <p className="text-[10px]">Telp: 0812-3456-7890</p>
+              <h2 className="text-lg font-bold uppercase">{storeInfo.name}</h2>
+              {storeInfo.address && <p className="text-[10px]">{storeInfo.address}</p>}
+              {storeInfo.phone && <p className="text-[10px]">Telp: {storeInfo.phone}</p>}
             </div>
 
             <div className="border-b border-dashed border-black pb-2 space-y-1 text-[10px]">
@@ -511,7 +633,7 @@ export default function CashierPage() {
               </div>
               <div className="flex justify-between">
                 <span>Kasir:</span>
-                <span>Admin</span>
+                <span>{lastTransaction.cashierName || 'Admin'}</span>
               </div>
               {lastTransaction.customerName && (
                 <div className="flex justify-between">
@@ -558,10 +680,23 @@ export default function CashierPage() {
               )}
             </div>
 
-            <div className="text-center pt-6 space-y-1 opacity-80">
+            <div className="text-center pt-6 space-y-1 opacity-80 border-t border-dashed border-black mt-4">
               <p className="text-[10px] font-bold">TERIMA KASIH</p>
-              <p className="text-[9px]">Selamat Belanja Kembali</p>
-              <p className="text-[8px] italic mt-2">www.kasirku.id</p>
+              {storeInfo.footer && <p className="text-[9px]">{storeInfo.footer}</p>}
+              {(storeInfo.wifiName || storeInfo.mapsLink) && (
+                <div className="pt-2 border-t border-dotted border-black mt-2 text-[8px] space-y-0.5 text-left">
+                  {storeInfo.wifiName && (
+                    <p className="whitespace-nowrap overflow-hidden text-ellipsis">
+                      📶 WiFi: {storeInfo.wifiName} {storeInfo.wifiPassword ? `(Pwd: ${storeInfo.wifiPassword})` : ''}
+                    </p>
+                  )}
+                  {storeInfo.mapsLink && (
+                    <p className="whitespace-nowrap overflow-hidden text-ellipsis">
+                      📍 Maps: {storeInfo.mapsLink}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -574,6 +709,8 @@ interface CartSectionProps {
   cart: CartItem[];
   customerName: string;
   setCustomerName: (name: string) => void;
+  whatsappNumber: string;
+  setWhatsappNumber: (num: string) => void;
   pendingTransactions: Transaction[];
   selectedPendingId: string | null;
   loadPendingBill: (t: Transaction) => void;
@@ -596,6 +733,8 @@ function CartSection({
   cart,
   customerName,
   setCustomerName,
+  whatsappNumber,
+  setWhatsappNumber,
   pendingTransactions,
   selectedPendingId,
   loadPendingBill,
@@ -638,17 +777,33 @@ function CartSection({
       <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
         <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 pt-6 pb-4 space-y-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nama Customer</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-300" />
-                <input 
-                  type="text" 
-                  placeholder="Nama customer..." 
-                  className="w-full bg-zinc-50/50 border border-zinc-100 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 border-b border-zinc-50">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nama Customer</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-300" />
+                  <input 
+                    type="text" 
+                    placeholder="Nama customer..." 
+                    className="w-full bg-zinc-50/50 border border-zinc-100 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nomor WhatsApp</label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-300" />
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: 0812345678" 
+                    className="w-full bg-zinc-50/50 border border-zinc-100 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 

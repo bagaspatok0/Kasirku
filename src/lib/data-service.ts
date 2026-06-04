@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { handleFirestoreError } from '@/lib/error-handler';
-import { OperationType, Product, Transaction, Category, CashMovement, Settlement } from '@/types';
+import { OperationType, Product, Transaction, Category, CashMovement, Settlement, CashierAccount } from '@/types';
 
 const PRODUCTS_COL = 'products';
 const TRANSACTIONS_COL = 'transactions';
@@ -546,6 +546,58 @@ export const settlementsService = {
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, SETTLEMENTS_COL);
+    }
+  }
+};
+
+const CASHIERS_COL = 'cashiers';
+
+export const cashiersService = {
+  subscribe: (callback: (cashiers: CashierAccount[]) => void) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      callback([]);
+      return () => {};
+    }
+    const q = query(
+      collection(db, CASHIERS_COL),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const cashiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CashierAccount));
+      callback(cashiers);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, CASHIERS_COL));
+  },
+  add: async (name: string, pin: string) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("User not authenticated");
+      return await addDoc(collection(db, CASHIERS_COL), {
+        name,
+        pin,
+        userId,
+        createdAt: serverTimestamp(),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, CASHIERS_COL);
+    }
+  },
+  update: async (id: string, name: string, pin: string) => {
+    try {
+      return await updateDoc(doc(db, CASHIERS_COL, id), {
+        name,
+        pin,
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${CASHIERS_COL}/${id}`);
+    }
+  },
+  delete: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, CASHIERS_COL, id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${CASHIERS_COL}/${id}`);
     }
   }
 };

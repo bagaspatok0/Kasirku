@@ -24,14 +24,15 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ProductsPage from './ProductsPage';
 import { toast } from 'sonner';
-import { whitelistService, settlementsService, transactionsService, cashService, productsService, categoriesService } from '@/lib/data-service';
-import { Settlement } from '@/types';
+import { whitelistService, settlementsService, transactionsService, cashService, productsService, categoriesService, cashiersService } from '@/lib/data-service';
+import { Settlement, CashierAccount } from '@/types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { auth } from '@/lib/firebase';
+import { getStoreInfo, saveStoreInfo } from '@/lib/utils';
 
-type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue' | 'whitelist' | 'display';
+type SettingsSection = 'overview' | 'products' | 'profile' | 'revenue' | 'whitelist' | 'display' | 'store' | 'cashier_accounts';
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('overview');
@@ -44,6 +45,32 @@ export default function SettingsPage() {
   const [newUsername, setNewUsername] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  // Cashier management state
+  const [cashierList, setCashierList] = useState<CashierAccount[]>([]);
+  const [cashierNameInput, setCashierNameInput] = useState('');
+  const [cashierPinInput, setCashierPinInput] = useState('');
+  const [editingCashierId, setEditingCashierId] = useState<string | null>(null);
+
+  // Store information state
+  const [storeNameState, setStoreNameState] = useState('');
+  const [storeAddressState, setStoreAddressState] = useState('');
+  const [storePhoneState, setStorePhoneState] = useState('');
+  const [storeFooterState, setStoreFooterState] = useState('');
+  const [storeMapsLinkState, setStoreMapsLinkState] = useState('');
+  const [storeWifiNameState, setStoreWifiNameState] = useState('');
+  const [storeWifiPasswordState, setStoreWifiPasswordState] = useState('');
+
+  useEffect(() => {
+    const info = getStoreInfo();
+    setStoreNameState(info.name);
+    setStoreAddressState(info.address);
+    setStorePhoneState(info.phone);
+    setStoreFooterState(info.footer);
+    setStoreMapsLinkState(info.mapsLink || '');
+    setStoreWifiNameState(info.wifiName || '');
+    setStoreWifiPasswordState(info.wifiPassword || '');
+  }, []);
 
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
@@ -64,10 +91,58 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveCashier = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!cashierNameInput.trim() || !cashierPinInput.trim()) {
+      toast.error('Nama kasir dan password/pin wajib diisi!');
+      return;
+    }
+
+    try {
+      if (editingCashierId) {
+        await cashiersService.update(editingCashierId, cashierNameInput.trim(), cashierPinInput.trim());
+        toast.success('Akun Kasir berhasil diperbarui');
+      } else {
+        await cashiersService.add(cashierNameInput.trim(), cashierPinInput.trim());
+        toast.success('Akun Kasir berhasil ditambahkan');
+      }
+      setCashierNameInput('');
+      setCashierPinInput('');
+      setEditingCashierId(null);
+    } catch (error) {
+      toast.error('Gagal menyimpan akun kasir');
+    }
+  };
+
+  const handleEditCashier = (cashier: CashierAccount) => {
+    setEditingCashierId(cashier.id || null);
+    setCashierNameInput(cashier.name);
+    setCashierPinInput(cashier.pin);
+  };
+
+  const handleDeleteCashier = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus akun kasir ini?')) return;
+    try {
+      await cashiersService.delete(id);
+      toast.success('Akun Kasir telah dihapus');
+      if (editingCashierId === id) {
+        setEditingCashierId(null);
+        setCashierNameInput('');
+        setCashierPinInput('');
+      }
+    } catch (error) {
+      toast.error('Gagal menghapus akun kasir');
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       const unsub = settlementsService.getAll(setSettlements);
-      return () => unsub();
+      const unsubCashiers = cashiersService.subscribe(setCashierList);
+      return () => {
+        unsub();
+        unsubCashiers();
+      };
     }
   }, [isAuthenticated]);
 
@@ -125,6 +200,25 @@ export default function SettingsPage() {
     setCurrentPassword('');
     setNewPassword('');
     setNewUsername('');
+  };
+
+  const handleUpdateStoreInfo = (e: FormEvent) => {
+    e.preventDefault();
+    if (!storeNameState.trim()) {
+      toast.error('Nama toko tidak boleh kosong');
+      return;
+    }
+    saveStoreInfo({
+      name: storeNameState.trim(),
+      address: storeAddressState.trim(),
+      phone: storePhoneState.trim(),
+      footer: storeFooterState.trim(),
+      mapsLink: storeMapsLinkState.trim(),
+      wifiName: storeWifiNameState.trim(),
+      wifiPassword: storeWifiPasswordState.trim()
+    });
+    toast.success('Informasi toko berhasil disimpan');
+    setActiveSection('overview');
   };
 
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -658,6 +752,251 @@ export default function SettingsPage() {
             )}
           </div>
         );
+      case 'store':
+        return (
+          <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center gap-4 mb-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setActiveSection('overview')}
+                className="rounded-full h-8 w-8"
+              >
+                <ChevronRight className="w-5 h-5 rotate-180" />
+              </Button>
+              <div>
+                <h2 className="text-2xl font-light tracking-tight">Informasi Toko</h2>
+                <p className="text-xs text-zinc-400 font-medium uppercase tracking-widest">Atur nama toko dan identitas cetak struk</p>
+              </div>
+            </div>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-8 md:p-12">
+                <form onSubmit={handleUpdateStoreInfo} className="space-y-8">
+                  <div className="flex flex-col items-center mb-8">
+                    <div className="w-24 h-24 bg-emerald-50 rounded-3xl flex items-center justify-center mb-4 border-2 border-emerald-50 shadow-inner">
+                      <Store className="w-10 h-10 text-emerald-600" />
+                    </div>
+                    <p className="text-sm text-zinc-400 font-medium tracking-tight">Data ini akan otomatis muncul pada struk print dan teks WhatsApp</p>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Nama Toko *</label>
+                      <Input 
+                        placeholder="Contoh: Toko Kopi Sukses" 
+                        className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                        value={storeNameState}
+                        onChange={(e) => setStoreNameState(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Alamat Toko</label>
+                      <Input 
+                        placeholder="Contoh: Jl. Merdeka No. 45, Jakarta" 
+                        className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                        value={storeAddressState}
+                        onChange={(e) => setStoreAddressState(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Nomor Telepon Toko</label>
+                      <Input 
+                        placeholder="Contoh: 0812-3456-7890" 
+                        className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                        value={storePhoneState}
+                        onChange={(e) => setStorePhoneState(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Pesan Kaki Struk (Receipt Footer)</label>
+                      <Input 
+                        placeholder="Contoh: Terima Kasih, Selamat Belanja Kembali!" 
+                        className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                        value={storeFooterState}
+                        onChange={(e) => setStoreFooterState(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Link Google Maps (Lokasi Toko)</label>
+                      <Input 
+                        placeholder="Contoh: https://maps.app.goo.gl/..." 
+                        className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                        value={storeMapsLinkState}
+                        onChange={(e) => setStoreMapsLinkState(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-zinc-50">
+                      <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Informasi WiFi Pelanggan (Opsional)</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Nama WiFi (SSID)</label>
+                          <Input 
+                            placeholder="Contoh: WiFi_Toko_Gratis" 
+                            className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                            value={storeWifiNameState}
+                            onChange={(e) => setStoreWifiNameState(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Password WiFi</label>
+                          <Input 
+                            placeholder="Contoh: kopisukses123" 
+                            type="text"
+                            className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
+                            value={storeWifiPasswordState}
+                            onChange={(e) => setStoreWifiPasswordState(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-6 border-t border-zinc-100">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      className="flex-1 rounded-2xl py-6"
+                      onClick={() => setActiveSection('overview')}
+                    >
+                      Batal
+                    </Button>
+                    <Button type="submit" className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl py-6 transition-all shadow-lg active:scale-95">
+                      Simpan Informasi
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      case 'cashier_accounts':
+        return (
+          <div className="max-w-2xl mx-auto space-y-8">
+            <div className="flex items-center gap-4 mb-6">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => {
+                  setActiveSection('overview');
+                  setEditingCashierId(null);
+                  setCashierNameInput('');
+                  setCashierPinInput('');
+                }}
+                className="rounded-full h-8 w-8"
+              >
+                <ChevronRight className="w-5 h-5 rotate-180" />
+              </Button>
+              <h2 className="text-2xl font-light tracking-tight">Kelola Akun Kasir</h2>
+            </div>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-8 md:p-12">
+                <form onSubmit={handleSaveCashier} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Nama Kasir</label>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300" />
+                      <Input 
+                        type="text"
+                        placeholder="Nama kasir..." 
+                        className="pl-12 py-6 rounded-xl border-zinc-100 bg-zinc-50/30 font-bold text-sm focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
+                        value={cashierNameInput}
+                        onChange={(e) => setCashierNameInput(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Password / PIN Kasir</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300" />
+                      <Input 
+                        type="text"
+                        placeholder="Password kasir..." 
+                        className="pl-12 py-6 rounded-xl border-zinc-100 bg-zinc-50/30 font-bold text-sm focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all placeholder:text-zinc-300"
+                        value={cashierPinInput}
+                        onChange={(e) => setCashierPinInput(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    {editingCashierId && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        className="flex-1 rounded-2xl py-6"
+                        onClick={() => {
+                          setEditingCashierId(null);
+                          setCashierNameInput('');
+                          setCashierPinInput('');
+                        }}
+                      >
+                        Batal Edit
+                      </Button>
+                    )}
+                    <Button type="submit" className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl py-6 transition-all shadow-lg active:scale-95">
+                      {editingCashierId ? 'Perbarui Akun Kasir' : 'Tambah Akun Kasir'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-8 md:p-12">
+                <h3 className="text-lg font-bold uppercase tracking-wider text-zinc-800 mb-6 font-sans">Daftar Akun Kasir ({cashierList.length})</h3>
+                {cashierList.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-400 border border-dashed border-zinc-100 rounded-3xl">
+                    <p className="text-sm font-bold">Belum ada akun kasir terdaftar.</p>
+                    <p className="text-xs text-zinc-400 mt-1">Gunakan form di atas untuk menambahkan kasir baru.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cashierList.map((cashier) => (
+                      <div 
+                        key={cashier.id} 
+                        className="flex items-center justify-between p-4 border border-zinc-100 hover:border-zinc-300 transition-all rounded-2xl bg-zinc-50/20"
+                      >
+                        <div>
+                          <p className="text-sm font-black text-zinc-900">{cashier.name}</p>
+                          <p className="text-xs text-zinc-400 font-medium font-sans">Password: <span className="font-mono text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded text-[11px] font-bold">{cashier.pin}</span></p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditCashier(cashier)}
+                            className="rounded-xl px-3 text-xs font-bold border-zinc-200"
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDeleteCashier(cashier.id!)}
+                            className="text-zinc-400 hover:text-rose-500 rounded-xl"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
       case 'whitelist':
         return (
           <div className="max-w-2xl mx-auto space-y-8">
@@ -762,15 +1101,31 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
-              className="border-zinc-100 opacity-50 cursor-not-allowed group rounded-3xl overflow-hidden shadow-sm"
+              className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
+              onClick={() => setActiveSection('cashier_accounts')}
             >
               <CardContent className="p-8 flex flex-col items-center text-center">
-                <div className="p-4 bg-zinc-50 rounded-2xl mb-6">
-                  <Store className="w-8 h-8 text-zinc-300" />
+                <div className="p-4 bg-zinc-900 rounded-2xl mb-6 group-hover:scale-110 transition-transform shadow-lg">
+                  <User className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-medium text-zinc-400 mb-2">Informasi Toko</h3>
-                <p className="text-sm text-zinc-300 leading-relaxed">
-                  Atur nama toko dan info bisnis lainnya.
+                <h3 className="text-xl font-medium text-zinc-900 mb-2">Akun Kasir</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Tambah dan kelola akun kasir dengan password masing-masing untuk input pesanan.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card 
+              className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
+              onClick={() => setActiveSection('store')}
+            >
+              <CardContent className="p-8 flex flex-col items-center text-center">
+                <div className="p-4 bg-emerald-50 rounded-2xl mb-6 group-hover:scale-110 transition-transform shadow-sm">
+                  <Store className="w-8 h-8 text-emerald-600" />
+                </div>
+                <h3 className="text-xl font-medium text-zinc-900 mb-2">Informasi Toko</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Atur nama toko, alamat, nomor telepon, dan pesan struk lainnya.
                 </p>
               </CardContent>
             </Card>

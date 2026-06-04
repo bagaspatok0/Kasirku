@@ -22,10 +22,12 @@ import TransactionsPage from '@/pages/TransactionsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ActivityPage from '@/pages/ActivityPage';
 import { toast } from 'sonner';
+import { getStoreInfo } from '@/lib/utils';
 
 type Page = 'cashier' | 'transactions' | 'settings' | 'activity';
 
 export default function App() {
+  const storeInfo = getStoreInfo();
   const [user, setUser] = useState<User | null>(null);
   const [isWhitelisted, setIsWhitelisted] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,7 @@ export default function App() {
           <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mb-8 rotate-3">
             <Store className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-light tracking-tight text-zinc-900 mb-3">KasirKu</h1>
+          <h1 className="text-4xl font-light tracking-tight text-zinc-900 mb-3">{storeInfo.name}</h1>
           <p className="text-zinc-500 mb-10 leading-relaxed text-lg">
             Sistem Kasir modern yang mudah digunakan untuk mengelola bisnis Anda.
           </p>
@@ -150,7 +152,7 @@ export default function App() {
           </div>
           <h1 className="text-3xl font-light tracking-tight text-zinc-900 mb-3">Akses Ditolak</h1>
           <p className="text-zinc-500 mb-10 leading-relaxed">
-            Akun Anda (<span className="font-medium text-zinc-900">{user.email}</span>) belum terdaftar dalam sistem akses KasirKu. Silakan hubungi administrator untuk verifikasi.
+            Akun Anda (<span className="font-medium text-zinc-900">{user.email}</span>) belum terdaftar dalam sistem akses {storeInfo.name}. Silakan hubungi administrator untuk verifikasi.
           </p>
           <Button 
             onClick={handleLogout}
@@ -229,7 +231,7 @@ export default function App() {
                 <div className="w-8 h-8 md:w-10 md:h-10 bg-zinc-900 rounded-lg md:rounded-xl flex items-center justify-center transition-transform group-active:scale-95">
                   <Store className="w-4 h-4 md:w-5 md:h-5 text-white" />
                 </div>
-                <span className="font-medium text-xl md:text-2xl md:font-light tracking-tighter">KasirKu</span>
+                <span className="font-medium text-xl md:text-2xl md:font-light tracking-tighter">{storeInfo.name}</span>
               </div>
               <SheetContent side="left" className="w-72 p-0 rounded-r-[2rem] border-none">
                 <SheetTitle className="sr-only">Menu Navigasi</SheetTitle>
@@ -244,7 +246,7 @@ export default function App() {
                     <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center">
                       <Store className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-2xl font-light tracking-tighter text-zinc-900">KasirKu</span>
+                    <span className="text-2xl font-light tracking-tighter text-zinc-900">{storeInfo.name}</span>
                   </div>
                   <div className="flex-1 overflow-y-auto">
                     <NavContent />

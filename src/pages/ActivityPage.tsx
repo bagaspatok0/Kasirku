@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { 
   Activity, 
   ArrowUpCircle, 
@@ -19,15 +19,17 @@ import {
   XCircle,
   PlusCircle,
   BarChart3,
-  ListFilter
+  ListFilter,
+  User,
+  Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
-import { cashService, transactionsService, settlementsService, productsService } from '@/lib/data-service';
-import { CashMovement, Transaction, Settlement, Product } from '@/types';
+import { cashService, transactionsService, settlementsService, productsService, cashiersService } from '@/lib/data-service';
+import { CashMovement, Transaction, Settlement, Product, CashierAccount } from '@/types';
 import { toast } from 'sonner';
 
 type ActivityTab = 'cash' | 'sales' | 'settlement';
@@ -52,10 +54,27 @@ export default function ActivityPage() {
   const [showDetailedSummary, setShowDetailedSummary] = useState(false);
 
   // Cashier Auth
-  const [isCashierAuthenticated, setIsCashierAuthenticated] = useState(false);
-  const [cashierUsername, setCashierUsername] = useState('');
+  const [isCashierAuthenticated, setIsCashierAuthenticated] = useState(() => {
+    return localStorage.getItem('is_cashier_authenticated') === 'true';
+  });
+  const [cashierList, setCashierList] = useState<CashierAccount[]>([]);
+  const [selectedCashierId, setSelectedCashierId] = useState<string>(() => {
+    return localStorage.getItem('active_cashier_id') || 'admin';
+  });
   const [cashierPassword, setCashierPassword] = useState('');
   const [showAuthError, setShowAuthError] = useState(false);
+  const [authenticatedCashierName, setAuthenticatedCashierName] = useState(() => {
+    return localStorage.getItem('active_cashier_name') || 'Admin';
+  });
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pendingCashierId, setPendingCashierId] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('is_cashier_authenticated', String(isCashierAuthenticated));
+    localStorage.setItem('active_cashier_id', selectedCashierId);
+    localStorage.setItem('active_cashier_name', authenticatedCashierName);
+  }, [isCashierAuthenticated, selectedCashierId, authenticatedCashierName]);
 
   // Confirmation Dialogs
   const [isSettlementConfirmOpen, setIsSettlementConfirmOpen] = useState(false);
@@ -69,12 +88,14 @@ export default function ActivityPage() {
     const unsubTransactions = transactionsService.getByDate(selectedDate, (allTrans) => {
       setTransactions(allTrans.filter(t => t.status === 'completed'));
     });
+    const unsubCashiers = cashiersService.subscribe(setCashierList);
 
     return () => {
       unsubProducts();
       unsubMovements();
       unsubTransactions();
       unsubSettlements();
+      unsubCashiers();
     };
   }, [selectedDate]);
 
@@ -85,10 +106,11 @@ export default function ActivityPage() {
     await cashService.add({
       amount: Number(amount),
       description,
-      type
+      type,
+      cashierName: isCashierAuthenticated ? authenticatedCashierName : 'Admin'
     });
 
-    toast.success(`Uang ${type === 'in' ? 'masuk' : 'keluar'} berhasil dicatat`);
+    toast.success(`Uang ${type === 'in' ? 'masuk' : 'keluar'} berhasil dicatat oleh ${isCashierAuthenticated ? authenticatedCashierName : 'Admin'}`);
     setAmount('');
     setDescription('');
   };
@@ -161,6 +183,7 @@ export default function ActivityPage() {
         expectedCash: stats.expectedCash,
         actualCash: Number(actualCashInput),
         difference: Number(actualCashInput) - stats.expectedCash,
+        cashierName: isCashierAuthenticated ? authenticatedCashierName : 'Admin',
         soldItems: salesStats.sortedItems.map(item => ({
           name: item.name,
           quantity: item.count,
@@ -246,6 +269,47 @@ export default function ActivityPage() {
       }));
 
     return { totalRevenue, totalItems, sortedItems };
+  };
+
+  const handleVerifyActivityPin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!pinInput) {
+      toast.error("Password/PIN kasir wajib diisi!");
+      return;
+    }
+
+    let targetPassword = 'kasir123';
+    let cashierNameVal = 'Admin';
+
+    if (pendingCashierId === 'admin') {
+      const adminConfig = localStorage.getItem('admin_config');
+      if (adminConfig) {
+        try {
+          const parsed = JSON.parse(adminConfig);
+          if (parsed.password) targetPassword = parsed.password;
+        } catch (err) {}
+      }
+    } else {
+      const selectedCashier = cashierList.find(c => c.id === pendingCashierId);
+      if (!selectedCashier) {
+        toast.error("Kasir tidak ditemukan!");
+        return;
+      }
+      targetPassword = selectedCashier.pin;
+      cashierNameVal = selectedCashier.name;
+    }
+
+    if (pinInput !== targetPassword && !(pendingCashierId === 'admin' && pinInput === '123')) {
+      toast.error("Password/PIN kasir salah!");
+      return;
+    }
+
+    setIsCashierAuthenticated(true);
+    setSelectedCashierId(pendingCashierId || 'admin');
+    setAuthenticatedCashierName(cashierNameVal);
+    setShowPinModal(false);
+    setPinInput('');
+    toast.success(`Berhasil login sebagai Kasir: ${cashierNameVal}`);
   };
 
   const salesStats = calculateSalesStats();
@@ -369,10 +433,13 @@ export default function ActivityPage() {
                     </div>
                     <div>
                       <p className="font-medium text-zinc-900">{m.description}</p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-xs text-zinc-400">
                           {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
                         </p>
+                        <span className="text-[10px] text-zinc-500 font-sans">
+                          • Kasir: <span className="font-semibold text-zinc-650">{m.cashierName || 'Admin'}</span>
+                        </span>
                         {m.isSettled && <Badge variant="outline" className="text-[8px] h-4 py-0 rounded-full border-emerald-100 text-emerald-600 bg-emerald-50">Settled</Badge>}
                       </div>
                     </div>
@@ -505,34 +572,72 @@ export default function ActivityPage() {
                 <Activity className="w-10 h-10 text-zinc-400" />
               </div>
               <h2 className="text-3xl font-light tracking-tight mb-2">Akses Kasir</h2>
-              <p className="text-zinc-500 mb-8 text-sm">Masukkan kredensial kasir untuk mengakses laporan settlement.</p>
+              <p className="text-zinc-500 mb-8 text-sm">Pilih kasir bertugas dan masukkan password untuk mengakses laporan settlement.</p>
               
               <div className="w-full space-y-4">
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Username</label>
-                  <Input 
-                    placeholder="Username Kasir" 
-                    className="rounded-xl py-6 bg-zinc-50 border-none"
-                    value={cashierUsername}
-                    onChange={(e) => setCashierUsername(e.target.value)}
-                  />
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Pilih Kasir</label>
+                  <div className="relative">
+                    <select 
+                      className="w-full bg-zinc-50 border-none rounded-xl py-3.5 pl-4 pr-10 text-sm font-bold focus:ring-2 focus:ring-zinc-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+                      value={selectedCashierId}
+                      onChange={(e) => {
+                        setSelectedCashierId(e.target.value);
+                        setCashierPassword('');
+                        setShowAuthError(false);
+                      }}
+                    >
+                      <option value="admin">Admin (Default)</option>
+                      {cashierList.map(c => (
+                        <option key={c.id} value={c.id!}>{c.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 text-xs">
+                      ▼
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Password</label>
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Password / PIN</label>
                   <Input 
                     type="password"
                     placeholder="••••••" 
-                    className="rounded-xl py-6 bg-zinc-50 border-none"
+                    className="rounded-xl py-6 bg-zinc-50 border-none font-bold text-center tracking-widest"
                     value={cashierPassword}
-                    onChange={(e) => setCashierPassword(e.target.value)}
+                    onChange={(e) => {
+                      setCashierPassword(e.target.value);
+                      setShowAuthError(false);
+                    }}
                   />
                 </div>
-                {showAuthError && <p className="text-xs text-rose-500 font-medium">Username atau password salah</p>}
+                {showAuthError && <p className="text-xs text-rose-500 font-medium">Password/PIN salah</p>}
                 <Button 
                   className="w-full bg-zinc-900 rounded-2xl py-6 mt-4"
                   onClick={() => {
-                    if (cashierUsername === 'kasir' && cashierPassword === '123') {
+                    let targetPassword = 'kasir123';
+                    let cashierNameVal = 'Admin';
+
+                    if (selectedCashierId === 'admin') {
+                      const adminConfig = localStorage.getItem('admin_config');
+                      if (adminConfig) {
+                        try {
+                          const parsed = JSON.parse(adminConfig);
+                          if (parsed.password) targetPassword = parsed.password;
+                        } catch (err) {}
+                      }
+                    } else {
+                      const selectedCashier = cashierList.find(c => c.id === selectedCashierId);
+                      if (!selectedCashier) {
+                        toast.error("Kasir tidak ditemukan!");
+                        return;
+                      }
+                      targetPassword = selectedCashier.pin;
+                      cashierNameVal = selectedCashier.name;
+                    }
+
+                    if (cashierPassword === targetPassword || (selectedCashierId === 'admin' && cashierPassword === '123')) {
                       setIsCashierAuthenticated(true);
+                      setAuthenticatedCashierName(cashierNameVal);
                       setShowAuthError(false);
                     } else {
                       setShowAuthError(true);
@@ -557,7 +662,8 @@ export default function ActivityPage() {
                 <CheckCircle2 className="w-16 h-16 mb-4 text-white animate-bounce" />
                 <Badge className="bg-white text-emerald-600 border-none mb-6 px-4 py-1.5 uppercase tracking-widest text-[10px]">Settled Successfully</Badge>
                 <h2 className="text-4xl font-light tracking-tight mb-2">Shift Selesai</h2>
-                <p className="opacity-70 mb-4">{selectedDate.toLocaleDateString('id-ID', { dateStyle: 'long' })}</p>
+                <p className="opacity-70 mb-1">{selectedDate.toLocaleDateString('id-ID', { dateStyle: 'long' })}</p>
+                <p className="opacity-55 text-xs mb-4">Kasir: {settlements[0]?.cashierName || authenticatedCashierName}</p>
                 <div className="flex gap-4">
                   <Button 
                     variant="ghost" 
@@ -565,11 +671,10 @@ export default function ActivityPage() {
                     className="text-white/50 hover:text-white hover:bg-white/10 transition-colors relative z-20"
                     onClick={() => {
                       setIsCashierAuthenticated(false);
-                      setCashierUsername('');
                       setCashierPassword('');
                     }}
                   >
-                    Logout Kasir
+                    Logout Kasir ({authenticatedCashierName})
                   </Button>
                 </div>
               </div>
@@ -577,8 +682,9 @@ export default function ActivityPage() {
               <>
                 <Badge className="bg-emerald-500 text-white border-none mb-6 px-4 py-1.5 uppercase tracking-widest text-[10px]">Ready for Settlement</Badge>
                 <h2 className="text-4xl font-light tracking-tight mb-2">Laporan Akhir Hari</h2>
-                <p className="opacity-50 font-medium tracking-tight mb-4">Generate settlement untuk mengakhiri shift.</p>
-                <p className="font-bold text-emerald-400">{selectedDate.toLocaleDateString('id-ID', { dateStyle: 'long' })}</p>
+                <p className="opacity-50 font-medium tracking-tight mb-2">Generate settlement untuk mengakhiri shift.</p>
+                <p className="font-bold text-emerald-400 mb-1">{selectedDate.toLocaleDateString('id-ID', { dateStyle: 'long' })}</p>
+                <p className="opacity-70 text-xs text-zinc-300">Akses Aktif: <span className="font-black text-white">{authenticatedCashierName}</span></p>
               </>
             )}
              {!isSettledToday && (
@@ -589,11 +695,10 @@ export default function ActivityPage() {
                    className="text-white/50 hover:text-white hover:bg-white/10 transition-colors relative z-20"
                    onClick={() => {
                      setIsCashierAuthenticated(false);
-                     setCashierUsername('');
                      setCashierPassword('');
                    }}
                  >
-                   Logout Kasir
+                   Logout Kasir ({authenticatedCashierName})
                  </Button>
                </div>
              )}
@@ -783,7 +888,7 @@ export default function ActivityPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl md:text-5xl font-light tracking-tighter text-zinc-900 mb-2">Aktifitas</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 mt-1.5">
             <div className="flex items-center gap-2 p-1.5 px-3 bg-zinc-100 rounded-full text-zinc-500">
                <Calendar className="w-4 h-4" />
                <input 
@@ -797,6 +902,38 @@ export default function ActivityPage() {
                   }
                 }}
                />
+            </div>
+
+            <div className="flex items-center gap-2 p-1.5 pl-3 pr-2.5 bg-zinc-100 rounded-full text-[11px] font-bold text-zinc-600">
+              <User className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="opacity-60 text-[9px] uppercase font-bold tracking-wider">Kasir Bertugas:</span>
+              <div className="relative">
+                <select 
+                  className="bg-transparent border-none py-0.5 pl-0 pr-5 text-[11px] font-extrabold uppercase tracking-tight focus:outline-none appearance-none cursor-pointer text-zinc-900" 
+                  value={isCashierAuthenticated ? selectedCashierId : 'unauthenticated'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'unauthenticated') {
+                      setIsCashierAuthenticated(false);
+                      setAuthenticatedCashierName('Admin');
+                      setSelectedCashierId('admin');
+                      return;
+                    }
+                    setPendingCashierId(val);
+                    setPinInput('');
+                    setShowPinModal(true);
+                  }}
+                >
+                  <option value="unauthenticated">-- Pilih Kasir --</option>
+                  <option value="admin">Admin (Default)</option>
+                  {cashierList.map(c => (
+                    <option key={c.id} value={c.id!}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400 text-[8px]">
+                  ▼
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -939,6 +1076,54 @@ export default function ActivityPage() {
             <Button className="w-full bg-zinc-900 rounded-2xl py-6" onClick={() => setIsSettlementRecapOpen(false)}>
               Mengerti
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPinModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowPinModal(false);
+          setPinInput('');
+        }
+      }}>
+        <DialogContent className="rounded-3xl border-none p-10 max-w-sm text-center">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-6">
+              <Lock className="w-8 h-8 text-zinc-900" />
+            </div>
+            <h2 className="text-2xl font-light tracking-tight mb-2">Verifikasi Kasir</h2>
+            <p className="text-zinc-500 mb-6 text-sm">
+              Sandi untuk: <span className="font-bold text-zinc-900">{pendingCashierId === 'admin' ? 'Admin' : cashierList.find(c => c.id === pendingCashierId)?.name || 'Kasir'}</span>
+            </p>
+            <form onSubmit={handleVerifyActivityPin} className="w-full space-y-4">
+              <Input 
+                type="password"
+                placeholder="••••••" 
+                className="rounded-xl py-6 bg-zinc-50 border-none font-bold text-center tracking-widest text-lg"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                autoFocus
+              />
+              <div className="flex gap-3 w-full pt-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1 rounded-2xl py-6" 
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setPinInput('');
+                  }}
+                >
+                  Batal
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-zinc-900 rounded-2xl py-6"
+                >
+                  Verifikasi
+                </Button>
+              </div>
+            </form>
           </div>
         </DialogContent>
       </Dialog>
