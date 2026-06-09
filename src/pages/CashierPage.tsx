@@ -574,7 +574,7 @@ export default function CashierPage() {
             </div>
 
             <div className="w-full border-t border-zinc-100 pt-3 space-y-2 text-left">
-              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Kirim Struk WA (Uji Coba)</label>
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Kirim Struk WA</label>
               <div className="flex gap-1.5">
                 <Input 
                   type="text" 

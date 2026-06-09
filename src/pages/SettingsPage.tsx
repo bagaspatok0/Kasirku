@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ProductsPage from './ProductsPage';
 import { toast } from 'sonner';
 import { whitelistService, settlementsService, transactionsService, cashService, productsService, categoriesService, cashiersService } from '@/lib/data-service';
@@ -51,6 +52,7 @@ export default function SettingsPage() {
   const [cashierNameInput, setCashierNameInput] = useState('');
   const [cashierPinInput, setCashierPinInput] = useState('');
   const [editingCashierId, setEditingCashierId] = useState<string | null>(null);
+  const [cashierToDelete, setCashierToDelete] = useState<CashierAccount | null>(null);
 
   // Store information state
   const [storeNameState, setStoreNameState] = useState('');
@@ -74,6 +76,7 @@ export default function SettingsPage() {
 
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
+  const [settlementViewTab, setSettlementViewTab] = useState<'p&l' | 'items'>('p&l');
 
   const [whitelistEmail, setWhitelistEmail] = useState('');
   const isRootAdmin = auth.currentUser?.email === 'cssbagas@gmail.com';
@@ -120,18 +123,24 @@ export default function SettingsPage() {
     setCashierPinInput(cashier.pin);
   };
 
-  const handleDeleteCashier = async (id: string) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus akun kasir ini?')) return;
+  const handleDeleteCashier = (cashier: CashierAccount) => {
+    setCashierToDelete(cashier);
+  };
+
+  const confirmDeleteCashier = async () => {
+    if (!cashierToDelete || !cashierToDelete.id) return;
     try {
-      await cashiersService.delete(id);
+      await cashiersService.delete(cashierToDelete.id);
       toast.success('Akun Kasir telah dihapus');
-      if (editingCashierId === id) {
+      if (editingCashierId === cashierToDelete.id) {
         setEditingCashierId(null);
         setCashierNameInput('');
         setCashierPinInput('');
       }
     } catch (error) {
       toast.error('Gagal menghapus akun kasir');
+    } finally {
+      setCashierToDelete(null);
     }
   };
 
@@ -252,11 +261,50 @@ export default function SettingsPage() {
     try {
       const dateStr = format(settlement.date?.toDate ? settlement.date.toDate() : new Date(), 'yyyy-MM-dd_HH-mm');
       
+      const dateVal = settlement.date?.toDate ? settlement.date.toDate() : new Date();
+      const formattedDate = format(dateVal, 'dd MMMM yyyy', { locale: id });
+      const shopInfo = getStoreInfo();
+      const shopName = shopInfo.name || 'KasirKu';
+
+      const totalSales = settlement.totalSales || 0;
+      const hpp = totalSales * 0.5; // Estimasi HPP 50%
+      const labaKotor = totalSales - hpp;
+      const totalCashOut = settlement.totalCashOut || 0;
+      const labaBersihOperasional = labaKotor - totalCashOut;
+      const totalCashIn = settlement.totalCashIn || 0;
+      const labaRugiBersih = labaBersihOperasional + totalCashIn;
+
+      // Tabular P&L Sheet - formatted just like the image!
+      const pAndLData = [
+        [`LAPORAN KEUNTUNGAN ${shopName.toUpperCase()}`],
+        ['Laba dan Rugi'],
+        [`Periode: ${formattedDate}`],
+        [''],
+        ['Pendapatan'],
+        ['  • Pendapatan Jasa / Penjualan', 'Rp.', totalSales.toLocaleString('id-ID')],
+        ['Total Pendapatan', 'Rp.', totalSales.toLocaleString('id-ID')],
+        [''],
+        ['Harga Pokok Penjualan'],
+        ['  • Harga Pokok Penjualan (HPP)', 'Rp.', hpp.toLocaleString('id-ID')],
+        ['Total Harga Pokok Penjualan', 'Rp.', hpp.toLocaleString('id-ID')],
+        ['TOTAL LABA KOTOR', 'Rp.', labaKotor.toLocaleString('id-ID')],
+        [''],
+        ['Beban Operasional'],
+        ['  • Beban Operasional (Kas Keluar)', 'Rp.', totalCashOut.toLocaleString('id-ID')],
+        ['Total Beban Operasional', 'Rp.', totalCashOut.toLocaleString('id-ID')],
+        ['LABA BERSIH OPERASIONAL', 'Rp.', labaBersihOperasional.toLocaleString('id-ID')],
+        [''],
+        ['Pendapatan & Beban Lainnya'],
+        ['  • Kas Masuk Lainnya / Modal', 'Rp.', totalCashIn.toLocaleString('id-ID')],
+        ['Total Pendapatan & Beban Lainnya', 'Rp.', totalCashIn.toLocaleString('id-ID')],
+        ['LABA/(RUGI) BERSIH', 'Rp.', labaRugiBersih.toLocaleString('id-ID')]
+      ];
+
       // Financial Summary Sheet
       const summaryData = [
-        ['LAPORAN SETTLEMENT', ''],
-        ['Tanggal', format(settlement.date?.toDate ? settlement.date.toDate() : new Date(), 'PPPP p', { locale: id })],
-        ['Kasir', 'kasir'], // Since we don't store the specific cashier name in the settlement doc yet
+        ['LAPORAN DETAIL KAS & TRANSAKSI', ''],
+        ['Tanggal', format(dateVal, 'PPPP p', { locale: id })],
+        ['Kasir', settlement.cashierName || 'Admin'],
         ['', ''],
         ['RINGKASAN KEUANGAN', ''],
         ['Total Transaksi', settlement.totalTransactions],
@@ -274,17 +322,36 @@ export default function SettingsPage() {
       const itemData = [
         ['RINCIAN PRODUK TERJUAL', '', ''],
         ['Nama Produk', 'Jumlah', 'Total Pendapatan'],
-        ...(settlement.soldItems?.map(item => [item.name, item.quantity, item.revenue]) || [])
+        ...(settlement.soldItems?.map(item => [item.name, `${item.quantity} Unit`, item.revenue]) || [])
       ];
 
       const wb = XLSX.utils.book_new();
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-      const wsItems = XLSX.utils.aoa_to_sheet(itemData);
+      
+      const wsPL = XLSX.utils.aoa_to_sheet(pAndLData);
+      wsPL['!cols'] = [
+        { wch: 38 }, // Category/Item Desc
+        { wch: 6 },  // Rp.
+        { wch: 20 }  // Number layout
+      ];
 
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Keuangan');
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary['!cols'] = [
+        { wch: 30 },
+        { wch: 30 }
+      ];
+
+      const wsItems = XLSX.utils.aoa_to_sheet(itemData);
+      wsItems['!cols'] = [
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 20 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, wsPL, 'Laporan Laba Rugi');
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Detail Kas & Keuangan');
       XLSX.utils.book_append_sheet(wb, wsItems, 'Rincian Penjualan');
 
-      XLSX.writeFile(wb, `Laporan_Settlement_${dateStr}.xlsx`);
+      XLSX.writeFile(wb, `Laporan_Keuntungan_${dateStr}.xlsx`);
       toast.success('Laporan berhasil diekspor ke Excel');
     } catch (error) {
       console.error(error);
@@ -640,38 +707,171 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="lg:col-span-2">
-                  <Card className="border-none shadow-lg rounded-[2rem] md:rounded-[2.5rem] bg-white h-full">
-                    <CardHeader>
-                      <CardTitle className="text-lg md:text-xl font-light">Rincian Item Terjual</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="hidden sm:grid grid-cols-12 gap-4 pb-4 px-2 text-[10px] uppercase font-bold text-zinc-400 tracking-widest border-b border-zinc-50">
-                          <div className="col-span-6">Nama Produk</div>
-                          <div className="col-span-2 text-center">Jumlah</div>
-                          <div className="col-span-4 text-right">Subtotal</div>
-                        </div>
-                        <div className="max-h-[500px] overflow-y-auto space-y-2 pr-2 no-scrollbar">
-                          {selectedSettlement.soldItems?.map((item, idx) => (
-                            <div key={idx} className="flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-4 py-4 px-4 sm:px-2 items-center rounded-2xl bg-zinc-50/50 sm:bg-transparent sm:hover:bg-zinc-50 transition-all border border-zinc-50 sm:border-none">
-                              <div className="w-full sm:col-span-6 font-semibold sm:font-medium text-zinc-900 text-center sm:text-left">{item.name}</div>
-                              <div className="sm:col-span-2 text-center">
-                                <Badge variant="secondary" className="rounded-lg bg-white sm:bg-zinc-100 text-zinc-600 border-none font-bold sm:font-medium">
-                                  {item.quantity} Unit
-                                </Badge>
-                              </div>
-                              <div className="sm:col-span-4 text-center sm:text-right font-black sm:font-bold text-zinc-900 border-t sm:border-none border-zinc-100 w-full pt-2 sm:pt-0">
-                                Rp {item.revenue.toLocaleString()}
-                              </div>
-                            </div>
-                          ))}
-                          {(!selectedSettlement.soldItems || selectedSettlement.soldItems.length === 0) && (
-                            <div className="py-20 text-center text-zinc-400 opacity-20">
-                              <p className="text-sm">Tidak ada rincian item untuk settlement ini.</p>
-                            </div>
-                          )}
+                  <Card className="border-none shadow-lg rounded-[2rem] md:rounded-[2.5rem] bg-white h-full overflow-hidden">
+                    <CardHeader className="border-b border-zinc-50 pb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <CardTitle className="text-lg md:text-xl font-light">Rincian Laporan</CardTitle>
+                        <div className="flex bg-zinc-100 p-1 rounded-xl shrink-0">
+                          <button
+                            onClick={() => setSettlementViewTab('p&l')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${settlementViewTab === 'p&l' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+                          >
+                            Laba & Rugi (P&L)
+                          </button>
+                          <button
+                            onClick={() => setSettlementViewTab('items')}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${settlementViewTab === 'items' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+                          >
+                            Item Terjual ({selectedSettlement.soldItems?.length || 0})
+                          </button>
                         </div>
                       </div>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      {settlementViewTab === 'p&l' ? (
+                        <div className="space-y-6 max-w-2xl mx-auto p-4 md:p-8 bg-zinc-50/40 rounded-3xl border border-zinc-100">
+                          {/* Financial Statement Header */}
+                          <div className="text-center space-y-2 pb-6 border-b border-zinc-100">
+                            <h4 className="text-lg md:text-xl font-extrabold uppercase text-zinc-800 tracking-wider">
+                              LAPORAN KEUNTUNGAN {getStoreInfo().name.toUpperCase()}
+                            </h4>
+                            <div className="inline-block px-4 py-1.5 rounded-full bg-sky-50 text-sky-700 text-xs font-bold uppercase tracking-wider">
+                              Laba dan Rugi
+                            </div>
+                            <p className="text-xs text-zinc-400 font-medium tracking-wide mt-1">
+                              Periode: {format(selectedSettlement.date?.toDate ? selectedSettlement.date.toDate() : new Date(), 'dd MMMM yyyy', { locale: id })}
+                            </p>
+                          </div>
+
+                          {/* P&L Table Body */}
+                          <div className="space-y-6 font-sans text-sm mt-4 text-zinc-700">
+                            {/* SECTION: PENDAPATAN */}
+                            <div className="space-y-2">
+                              <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Pendapatan</h5>
+                              <div className="flex justify-between items-center pl-4 py-1">
+                                <span className="text-zinc-600 font-medium">• Pendapatan Jasa / Penjualan</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-medium">{(selectedSettlement.totalSales || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold border-b border-zinc-100 py-2 pl-2 bg-zinc-50/30">
+                                <span>Total Pendapatan</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span>{(selectedSettlement.totalSales || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECTION: Harga Pokok Penjualan */}
+                            <div className="space-y-2">
+                              <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Harga Pokok Penjualan</h5>
+                              <div className="flex justify-between items-center pl-4 py-1">
+                                <span className="text-zinc-600 font-medium">• Harga Pokok Penjualan (HPP)</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-medium">{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold border-b border-zinc-100 py-2 pl-2 bg-zinc-50/30">
+                                <span>Total Harga Pokok Penjualan</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span>{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold p-3 rounded-xl bg-sky-50 text-sky-800">
+                                <span className="font-extrabold text-xs tracking-wider uppercase">TOTAL LABA KOTOR</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-extrabold">{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECTION: Beban Operasional */}
+                            <div className="space-y-2">
+                              <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Beban Operasional</h5>
+                              <div className="flex justify-between items-center pl-4 py-1">
+                                <span className="text-zinc-600 font-medium">• Beban Operasional (Kas Keluar)</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-medium">{(selectedSettlement.totalCashOut || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold border-b border-zinc-100 py-2 pl-2 bg-zinc-50/30">
+                                <span>Total Beban Operasional</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span>{(selectedSettlement.totalCashOut || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold p-3 rounded-xl bg-zinc-100 text-zinc-800">
+                                <span className="font-extrabold text-xs tracking-wider uppercase">LABA BERSIH OPERASIONAL</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-extrabold">{(((selectedSettlement.totalSales || 0) * 0.5) - (selectedSettlement.totalCashOut || 0)).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECTION: LAINNYA */}
+                            <div className="space-y-2">
+                              <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Pendapatan &amp; Beban Lainnya</h5>
+                              <div className="flex justify-between items-center pl-4 py-1">
+                                <span className="text-zinc-600 font-medium">• Kas Masuk Lainnya / Modal</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span className="font-medium">{(selectedSettlement.totalCashIn || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-bold border-b border-zinc-100 py-2 pl-2 bg-zinc-50/30">
+                                <span>Total Pendapatan &amp; Beban Lainnya</span>
+                                <div className="flex gap-4 min-w-[150px] justify-between">
+                                  <span>Rp.</span>
+                                  <span>{(selectedSettlement.totalCashIn || 0).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center font-extrabold p-4 rounded-2xl bg-zinc-900 text-white shadow-md">
+                                <span className="text-xs uppercase tracking-wider">LABA/(RUGI) BERSIH</span>
+                                <div className="flex gap-4 min-w-[140px] justify-between">
+                                  <span>Rp.</span>
+                                  <span>{((((selectedSettlement.totalSales || 0) * 0.5) - (selectedSettlement.totalCashOut || 0)) + (selectedSettlement.totalCashIn || 0)).toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="hidden sm:grid grid-cols-12 gap-4 pb-4 px-2 text-[10px] uppercase font-bold text-zinc-400 tracking-widest border-b border-zinc-50">
+                            <div className="col-span-6">Nama Produk</div>
+                            <div className="col-span-2 text-center">Jumlah</div>
+                            <div className="col-span-4 text-right">Subtotal</div>
+                          </div>
+                          <div className="max-h-[500px] overflow-y-auto space-y-2 pr-2 no-scrollbar">
+                            {selectedSettlement.soldItems?.map((item, idx) => (
+                              <div key={idx} className="flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-4 py-4 px-4 sm:px-2 items-center rounded-2xl bg-zinc-50/50 sm:bg-transparent sm:hover:bg-zinc-50 transition-all border border-zinc-50 sm:border-none">
+                                <div className="w-full sm:col-span-6 font-semibold sm:font-medium text-zinc-900 text-center sm:text-left">{item.name}</div>
+                                <div className="sm:col-span-2 text-center">
+                                  <Badge variant="secondary" className="rounded-lg bg-white sm:bg-zinc-100 text-zinc-600 border-none font-bold sm:font-medium">
+                                    {item.quantity} Unit
+                                  </Badge>
+                                </div>
+                                <div className="sm:col-span-4 text-center sm:text-right font-black sm:font-bold text-zinc-900 border-t sm:border-none border-zinc-100 w-full pt-2 sm:pt-0">
+                                  Rp {item.revenue.toLocaleString()}
+                                </div>
+                              </div>
+                            ))}
+                            {(!selectedSettlement.soldItems || selectedSettlement.soldItems.length === 0) && (
+                              <div className="py-20 text-center text-zinc-400 opacity-20">
+                                <p className="text-sm">Tidak ada rincian item untuk settlement ini.</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -983,7 +1183,7 @@ export default function SettingsPage() {
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            onClick={() => handleDeleteCashier(cashier.id!)}
+                            onClick={() => handleDeleteCashier(cashier)}
                             className="text-zinc-400 hover:text-rose-500 rounded-xl"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -995,6 +1195,35 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Dialog open={!!cashierToDelete} onOpenChange={(open) => !open && setCashierToDelete(null)}>
+              <DialogContent className="max-w-xs rounded-3xl p-6 overflow-hidden">
+                <DialogHeader className="flex flex-col items-center justify-center text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <DialogTitle className="text-base font-black uppercase text-zinc-900 tracking-wider">Hapus Akun Kasir</DialogTitle>
+                </DialogHeader>
+                <div className="text-center text-xs text-zinc-500 font-medium leading-relaxed my-4">
+                  Apakah Anda yakin ingin menghapus akun kasir <span className="font-bold text-zinc-900">"{cashierToDelete?.name}"</span>? Tindakan ini tidak dapat dibatalkan.
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 rounded-2xl h-11 text-xs font-bold text-zinc-500 border-zinc-100 hover:bg-zinc-50"
+                    onClick={() => setCashierToDelete(null)}
+                  >
+                    Batal
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl h-11 text-xs font-bold border-none"
+                    onClick={confirmDeleteCashier}
+                  >
+                    Ya, Hapus
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         );
       case 'whitelist':
