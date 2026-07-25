@@ -135,8 +135,8 @@ service cloud.firestore {
     }
 
     match /whitelist/{email} {
-      allow get: if isVerified();
-      allow write: if isVerified() && request.auth.token.email == 'cssbagas@gmail.com';
+      allow get: if isSignedIn();
+      allow list, write: if isSignedIn() && request.auth.token.email == 'cssbagas@gmail.com';
     }
   }
 }

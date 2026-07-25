@@ -79,7 +79,21 @@ export default function SettingsPage() {
   const [settlementViewTab, setSettlementViewTab] = useState<'p&l' | 'items'>('p&l');
 
   const [whitelistEmail, setWhitelistEmail] = useState('');
+  const [whitelistList, setWhitelistList] = useState<{ id: string; email: string; addedAt?: any }[]>([]);
   const isRootAdmin = auth.currentUser?.email === 'cssbagas@gmail.com';
+
+  const fetchWhitelist = async () => {
+    if (isRootAdmin) {
+      const list = await whitelistService.getAll();
+      setWhitelistList(list);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && activeSection === 'whitelist' && isRootAdmin) {
+      fetchWhitelist();
+    }
+  }, [isAuthenticated, activeSection, isRootAdmin]);
 
   const handleAddWhitelist = async (e: FormEvent) => {
     e.preventDefault();
@@ -89,8 +103,19 @@ export default function SettingsPage() {
       await whitelistService.add(whitelistEmail);
       toast.success('User berhasil ditambahkan ke whitelist');
       setWhitelistEmail('');
+      fetchWhitelist();
     } catch (error) {
       toast.error('Gagal menambahkan user');
+    }
+  };
+
+  const handleDeleteWhitelist = async (email: string) => {
+    try {
+      await whitelistService.delete(email);
+      toast.success('Akses whitelist berhasil dihapus');
+      fetchWhitelist();
+    } catch (error) {
+      toast.error('Gagal menghapus akses whitelist');
     }
   };
 
@@ -267,10 +292,8 @@ export default function SettingsPage() {
       const shopName = shopInfo.name || 'KasirKu';
 
       const totalSales = settlement.totalSales || 0;
-      const hpp = totalSales * 0.5; // Estimasi HPP 50%
-      const labaKotor = totalSales - hpp;
       const totalCashOut = settlement.totalCashOut || 0;
-      const labaBersihOperasional = labaKotor - totalCashOut;
+      const labaBersihOperasional = totalSales - totalCashOut;
       const totalCashIn = settlement.totalCashIn || 0;
       const labaRugiBersih = labaBersihOperasional + totalCashIn;
 
@@ -283,11 +306,6 @@ export default function SettingsPage() {
         ['Pendapatan'],
         ['  • Pendapatan Jasa / Penjualan', 'Rp.', totalSales.toLocaleString('id-ID')],
         ['Total Pendapatan', 'Rp.', totalSales.toLocaleString('id-ID')],
-        [''],
-        ['Harga Pokok Penjualan'],
-        ['  • Harga Pokok Penjualan (HPP)', 'Rp.', hpp.toLocaleString('id-ID')],
-        ['Total Harga Pokok Penjualan', 'Rp.', hpp.toLocaleString('id-ID')],
-        ['TOTAL LABA KOTOR', 'Rp.', labaKotor.toLocaleString('id-ID')],
         [''],
         ['Beban Operasional'],
         ['  • Beban Operasional (Kas Keluar)', 'Rp.', totalCashOut.toLocaleString('id-ID')],
@@ -764,32 +782,6 @@ export default function SettingsPage() {
                               </div>
                             </div>
 
-                            {/* SECTION: Harga Pokok Penjualan */}
-                            <div className="space-y-2">
-                              <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Harga Pokok Penjualan</h5>
-                              <div className="flex justify-between items-center pl-4 py-1">
-                                <span className="text-zinc-600 font-medium">• Harga Pokok Penjualan (HPP)</span>
-                                <div className="flex gap-4 min-w-[150px] justify-between">
-                                  <span>Rp.</span>
-                                  <span className="font-medium">{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center font-bold border-b border-zinc-100 py-2 pl-2 bg-zinc-50/30">
-                                <span>Total Harga Pokok Penjualan</span>
-                                <div className="flex gap-4 min-w-[150px] justify-between">
-                                  <span>Rp.</span>
-                                  <span>{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center font-bold p-3 rounded-xl bg-sky-50 text-sky-800">
-                                <span className="font-extrabold text-xs tracking-wider uppercase">TOTAL LABA KOTOR</span>
-                                <div className="flex gap-4 min-w-[150px] justify-between">
-                                  <span>Rp.</span>
-                                  <span className="font-extrabold">{((selectedSettlement.totalSales || 0) * 0.5).toLocaleString('id-ID')}</span>
-                                </div>
-                              </div>
-                            </div>
-
                             {/* SECTION: Beban Operasional */}
                             <div className="space-y-2">
                               <h5 className="font-bold text-xs uppercase tracking-wider text-zinc-400">Beban Operasional</h5>
@@ -811,7 +803,7 @@ export default function SettingsPage() {
                                 <span className="font-extrabold text-xs tracking-wider uppercase">LABA BERSIH OPERASIONAL</span>
                                 <div className="flex gap-4 min-w-[150px] justify-between">
                                   <span>Rp.</span>
-                                  <span className="font-extrabold">{(((selectedSettlement.totalSales || 0) * 0.5) - (selectedSettlement.totalCashOut || 0)).toLocaleString('id-ID')}</span>
+                                  <span className="font-extrabold">{((selectedSettlement.totalSales || 0) - (selectedSettlement.totalCashOut || 0)).toLocaleString('id-ID')}</span>
                                 </div>
                               </div>
                             </div>
@@ -837,7 +829,7 @@ export default function SettingsPage() {
                                 <span className="text-xs uppercase tracking-wider">LABA/(RUGI) BERSIH</span>
                                 <div className="flex gap-4 min-w-[140px] justify-between">
                                   <span>Rp.</span>
-                                  <span>{((((selectedSettlement.totalSales || 0) * 0.5) - (selectedSettlement.totalCashOut || 0)) + (selectedSettlement.totalCashIn || 0)).toLocaleString('id-ID')}</span>
+                                  <span>{(((selectedSettlement.totalSales || 0) - (selectedSettlement.totalCashOut || 0) + (selectedSettlement.totalCashIn || 0)).toLocaleString('id-ID'))}</span>
                                 </div>
                               </div>
                             </div>
@@ -1013,7 +1005,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Pesan Kaki Struk (Receipt Footer)</label>
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Pesan Struk</label>
                       <Input 
                         placeholder="Contoh: Terima Kasih, Selamat Belanja Kembali!" 
                         className="rounded-xl py-6 border-zinc-100 bg-zinc-50/30 focus:ring-2 focus:ring-zinc-900 transition-all"
@@ -1262,6 +1254,70 @@ export default function SettingsPage() {
                     Izinkan Akses Sekarang
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
+              <CardHeader className="px-8 md:px-12 pt-8 pb-4 border-b border-zinc-50">
+                <CardTitle className="text-lg font-light text-zinc-900">Daftar Akun yang Memiliki Akses</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 md:p-12 space-y-4">
+                <div className="space-y-3">
+                  {/* Master Admin is always whitelisted and can't be deleted */}
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 border border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-zinc-900 text-white flex items-center justify-center font-bold text-xs uppercase">
+                        SA
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-xs text-zinc-900 flex items-center gap-2">
+                          cssbagas@gmail.com
+                          <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 rounded bg-zinc-900 text-white font-bold tracking-widest border-none">SUPER ADMIN</Badge>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 font-semibold tracking-wide">Pemilik Toko &amp; Pengembang Utama</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {whitelistList.length > 0 ? (
+                    whitelistList
+                      .filter(item => item.email !== 'cssbagas@gmail.com') // Filter out if duplicated
+                      .map((account) => {
+                        const initial = account.email.substring(0, 2).toUpperCase();
+                        return (
+                          <div key={account.id} className="flex items-center justify-between p-4 rounded-2xl bg-white border border-zinc-100 hover:border-zinc-200 transition-all">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center font-bold text-xs uppercase">
+                                {initial}
+                              </div>
+                              <div className="text-left">
+                                <div className="font-bold text-xs text-zinc-900">
+                                  {account.email}
+                                </div>
+                                <p className="text-[10px] text-zinc-400 font-medium tracking-wide">
+                                  Diberikan akses pada:{' '}
+                                  {account.addedAt?.toDate ? format(account.addedAt.toDate(), 'dd MMM yyyy HH:mm', { locale: id }) : '-'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleDeleteWhitelist(account.email)}
+                              className="text-zinc-400 hover:text-rose-500 rounded-xl"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        );
+                      })
+                  ) : (
+                    <div className="py-8 text-center text-zinc-400">
+                      <p className="text-xs font-medium">Belum ada akun tambahan yang di-whitelist.</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

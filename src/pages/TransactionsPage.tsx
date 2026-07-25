@@ -315,7 +315,7 @@ export default function TransactionsPage() {
                       <span className="text-[10px] text-zinc-500 font-sans">
                         Kasir: <span className="font-bold text-zinc-700">{t.cashierName || 'Admin'}</span>
                       </span>
-                      <span className="text-[9px] text-zinc-400 font-mono tracking-tighter">ID: {t.id?.slice(-8)}</span>
+                      <span className="text-[9px] text-zinc-400 font-mono tracking-tighter">No. Bukti: #{t.sequenceNumber ? String(t.sequenceNumber).padStart(5, '0') : t.id?.slice(-8)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -505,6 +505,7 @@ export default function TransactionsPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-1 mt-1">
+                <p className="text-xs text-zinc-500 font-mono font-bold">No. Bukti: #{selectedTransaction?.sequenceNumber ? String(selectedTransaction.sequenceNumber).padStart(5, '0') : (selectedTransaction?.id?.slice(-8) || '-')}</p>
                 <p className="text-xs text-zinc-400 font-mono">ID: {selectedTransaction?.id}</p>
                 {selectedTransaction?.status === 'void' && selectedTransaction?.voidReason && (
                   <div className="bg-red-50 p-3 rounded-xl mt-2 border border-red-100">
@@ -625,7 +626,7 @@ export default function TransactionsPage() {
             <div className="border-b border-dashed border-black pb-2 space-y-1 text-[10px]">
               <div className="flex justify-between">
                 <span>No Bukti:</span>
-                <span>#{selectedTransaction.id?.slice(-8).toUpperCase() || 'NEW'}</span>
+                <span>#{selectedTransaction.sequenceNumber ? String(selectedTransaction.sequenceNumber).padStart(5, '0') : (selectedTransaction.id?.slice(-8).toUpperCase() || 'NEW')}</span>
               </div>
               <div className="flex justify-between">
                 <span>Tanggal:</span>

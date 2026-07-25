@@ -57,6 +57,7 @@ export interface Transaction {
   createdAt: any;
   userId: string;
   isSettled?: boolean;
+  sequenceNumber?: number;
 }
 
 export interface CashierAccount {

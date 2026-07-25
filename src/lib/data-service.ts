@@ -114,6 +114,32 @@ export const transactionsService = {
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("User not authenticated");
       
+      // Determine sequence number
+      const q = query(
+        collection(db, TRANSACTIONS_COL),
+        where('userId', '==', userId),
+        orderBy('sequenceNumber', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      let nextSequence = 1;
+      
+      if (!snapshot.empty) {
+        const latestDoc = snapshot.docs[0];
+        const latestData = latestDoc.data();
+        if (latestData && typeof latestData.sequenceNumber === 'number') {
+          nextSequence = latestData.sequenceNumber + 1;
+        }
+      } else {
+        // Fallback: count all documents if none have sequenceNumber yet
+        const allQ = query(
+          collection(db, TRANSACTIONS_COL),
+          where('userId', '==', userId)
+        );
+        const allSnapshot = await getDocs(allQ);
+        nextSequence = allSnapshot.size + 1;
+      }
+      
       // Ensure optional fields are not undefined (Firestore doesn't like undefined)
       const data = {
         ...transaction,
@@ -122,11 +148,24 @@ export const transactionsService = {
         isSettled: false,
         cashReceived: transaction.cashReceived ?? null,
         change: transaction.change ?? null,
+        sequenceNumber: nextSequence,
       };
       
       return await addDoc(collection(db, TRANSACTIONS_COL), data);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, TRANSACTIONS_COL);
+    }
+  },
+  get: async (id: string) => {
+    try {
+      const docSnap = await getDoc(doc(db, TRANSACTIONS_COL, id));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Transaction;
+      }
+      return null;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `${TRANSACTIONS_COL}/${id}`);
+      return null;
     }
   },
   getByDate: (date: Date, callback: (transactions: Transaction[]) => void) => {
@@ -189,8 +228,46 @@ export const transactionsService = {
   },
   update: async (id: string, data: Partial<Transaction>) => {
     try {
-      await updateDoc(doc(db, TRANSACTIONS_COL, id), {
-        ...data,
+      const transRef = doc(db, TRANSACTIONS_COL, id);
+      const docSnap = await getDoc(transRef);
+      let updatedData = { ...data };
+      
+      if (docSnap.exists()) {
+        const existingData = docSnap.data();
+        if (data.status === 'completed' && (!existingData.sequenceNumber || typeof existingData.sequenceNumber !== 'number')) {
+          // Determine next sequence number
+          const userId = auth.currentUser?.uid;
+          if (userId) {
+            const q = query(
+              collection(db, TRANSACTIONS_COL),
+              where('userId', '==', userId),
+              orderBy('sequenceNumber', 'desc'),
+              limit(1)
+            );
+            const snapshot = await getDocs(q);
+            let nextSequence = 1;
+            
+            if (!snapshot.empty) {
+              const latestDoc = snapshot.docs[0];
+              const latestData = latestDoc.data();
+              if (latestData && typeof latestData.sequenceNumber === 'number') {
+                nextSequence = latestData.sequenceNumber + 1;
+              }
+            } else {
+              const allQ = query(
+                collection(db, TRANSACTIONS_COL),
+                where('userId', '==', userId)
+              );
+              const allSnapshot = await getDocs(allQ);
+              nextSequence = allSnapshot.size + 1;
+            }
+            updatedData.sequenceNumber = nextSequence;
+          }
+        }
+      }
+      
+      await updateDoc(transRef, {
+        ...updatedData,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -344,6 +421,33 @@ export const whitelistService = {
       });
     } catch (error) {
        handleFirestoreError(error, OperationType.CREATE, 'whitelist');
+    }
+  },
+  getAll: async () => {
+    try {
+      const q = query(collection(db, 'whitelist'));
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        email: doc.data().email || doc.id,
+        addedAt: doc.data().addedAt
+      }));
+      // Sort in-memory to avoid potential index errors during cold starts
+      return list.sort((a, b) => {
+        const timeA = a.addedAt?.toDate ? a.addedAt.toDate().getTime() : 0;
+        const timeB = b.addedAt?.toDate ? b.addedAt.toDate().getTime() : 0;
+        return timeB - timeA;
+      });
+    } catch (error) {
+      console.error("Error getting whitelist:", error);
+      return [];
+    }
+  },
+  delete: async (email: string) => {
+    try {
+      return await deleteDoc(doc(db, 'whitelist', email.toLowerCase()));
+    } catch (error) {
+      console.error("Error deleting whitelist item:", error);
     }
   }
 };

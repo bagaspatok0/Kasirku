@@ -127,6 +127,7 @@ export default function CashierPage() {
     setCashReceived('');
     setPaymentMethod('cash');
     setSelectedPendingId(null);
+    setWhatsappNumber('');
   };
 
   const formatPhoneNumber = (num: string) => {
@@ -154,7 +155,9 @@ export default function CashierPage() {
     }
     text += `\n`;
     
-    const shortId = trans.id ? (trans.id.length > 8 ? trans.id.slice(-6).toUpperCase() : trans.id) : 'BARU';
+    const invoiceNum = trans.sequenceNumber 
+      ? String(trans.sequenceNumber).padStart(5, '0') 
+      : (trans.id ? (trans.id.length > 8 ? trans.id.slice(-6).toUpperCase() : trans.id) : 'BARU');
     
     let dateStr = '';
     if (trans.createdAt) {
@@ -169,7 +172,7 @@ export default function CashierPage() {
       dateStr = new Date().toLocaleString('id-ID');
     }
 
-    text += `*No Bukti:* #${shortId}\n`;
+    text += `*No Bukti:* #${invoiceNum}\n`;
     text += `*Tanggal:* ${dateStr}\n`;
     text += `*Kasir:* ${trans.cashierName || 'Admin'}\n`;
     if (trans.customerName) {
@@ -312,10 +315,16 @@ export default function CashierPage() {
         status: 'completed' as const,
       };
 
+      let savedTransaction: Transaction | null = null;
+
       if (selectedPendingId) {
         await transactionsService.update(selectedPendingId, finalData);
+        savedTransaction = await transactionsService.get(selectedPendingId);
       } else {
-        await transactionsService.add(finalData);
+        const docRef = await transactionsService.add(finalData);
+        if (docRef) {
+          savedTransaction = await transactionsService.get(docRef.id);
+        }
       }
 
       // Update stock
@@ -327,15 +336,19 @@ export default function CashierPage() {
 
       // Automatically trigger WhatsApp redirect if WhatsApp number is configured
       const formattedPhone = formatPhoneNumber(whatsappNumber);
-      if (formattedPhone && formattedPhone.length >= 9) {
-        const text = getWhatsAppReceiptText(finalData as unknown as Transaction);
+      if (formattedPhone && formattedPhone.length >= 9 && savedTransaction) {
+        const text = getWhatsAppReceiptText(savedTransaction);
         const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${text}`;
         window.open(url, '_blank');
         toast.success("Membuka WhatsApp untuk mengirim struk...");
       }
 
       resetOrder();
-      setLastTransaction(finalData as unknown as Transaction);
+      if (savedTransaction) {
+        setLastTransaction(savedTransaction);
+      } else {
+        setLastTransaction(finalData as unknown as Transaction);
+      }
       setShowSuccessDialog(true);
       toast.success("Transaksi berhasil!");
     } catch (error) {
@@ -562,7 +575,12 @@ export default function CashierPage() {
         />
       </aside>
 
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+      <Dialog open={showSuccessDialog} onOpenChange={(open) => {
+        setShowSuccessDialog(open);
+        if (!open) {
+          setWhatsappNumber('');
+        }
+      }}>
         <DialogContent className="max-w-xs rounded-3xl p-6 overflow-hidden">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center shrink-0">
