@@ -564,8 +564,16 @@ export const settlementsService = {
 
         // Lock today's transactions and cash movements
         const settlementDate = settlement.date instanceof Date ? settlement.date : 
-                              (settlement.date as any)?.toDate ? (settlement.date as any).toDate() : new Date();
+                              (settlement.date as any)?.toDate ? (settlement.date as any).toDate() : 
+                              typeof settlement.date === 'string' ? new Date(settlement.date) : new Date();
         
+        txn.set(settlementRef, {
+          ...settlement,
+          date: settlementDate,
+          userId,
+          createdAt: serverTimestamp(),
+        });
+
         const startOfDay = new Date(settlementDate);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(settlementDate);
@@ -615,13 +623,17 @@ export const settlementsService = {
     const q = query(
       collection(db, SETTLEMENTS_COL),
       where('userId', '==', userId),
-      where('createdAt', '>=', startOfDay),
-      where('createdAt', '<=', endOfDay),
-      orderBy('createdAt', 'desc')
+      where('date', '>=', startOfDay),
+      where('date', '<=', endOfDay)
     );
 
     return onSnapshot(q, (snapshot) => {
       const settlements = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Settlement));
+      settlements.sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.date?.toDate ? a.date.toDate().getTime() : 0);
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.date?.toDate ? b.date.toDate().getTime() : 0);
+        return timeB - timeA;
+      });
       callback(settlements);
     }, (error) => handleFirestoreError(error, OperationType.LIST, SETTLEMENTS_COL));
   },
