@@ -49,6 +49,7 @@ export default function CashierPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [pendingToDelete, setPendingToDelete] = useState<Transaction | null>(null);
 
   useEffect(() => {
     const savedLayout = localStorage.getItem('cashier_layout') as 'list' | 'grid';
@@ -284,6 +285,25 @@ export default function CashierPage() {
     setCustomerName(t.customerName || '');
     setSelectedPendingId(t.id!);
     toast.info(`Memuat bill: ${t.customerName || 'No Name'}`);
+  };
+
+  const handleDeletePendingBill = (t: Transaction, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setPendingToDelete(t);
+  };
+
+  const confirmDeletePendingBill = async () => {
+    if (!pendingToDelete || !pendingToDelete.id) return;
+    try {
+      await transactionsService.delete(pendingToDelete.id);
+      if (selectedPendingId === pendingToDelete.id) {
+        resetOrder();
+      }
+      toast.success(`Simpanan bill "${pendingToDelete.customerName || 'Tanpa Nama'}" berhasil dihapus`);
+      setPendingToDelete(null);
+    } catch (error) {
+      toast.error("Gagal menghapus simpanan bill");
+    }
   };
 
   const handleCheckout = async () => {
@@ -560,6 +580,7 @@ export default function CashierPage() {
           pendingTransactions={pendingTransactions}
           selectedPendingId={selectedPendingId}
           loadPendingBill={loadPendingBill}
+          onDeletePendingBill={handleDeletePendingBill}
           resetOrder={resetOrder}
           handleSaveBill={handleSaveBill}
           updateCartQuantity={updateCartQuantity}
@@ -574,6 +595,37 @@ export default function CashierPage() {
           setCart={setCart}
         />
       </aside>
+
+      <Dialog open={!!pendingToDelete} onOpenChange={(open) => { if (!open) setPendingToDelete(null); }}>
+        <DialogContent className="max-w-xs rounded-3xl p-6">
+          <DialogHeader className="text-center sm:text-center">
+            <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6 text-rose-500" />
+            </div>
+            <DialogTitle className="text-base font-black text-zinc-900 text-center">Hapus Simpanan Bill?</DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-2">
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Apakah Anda yakin ingin menghapus simpanan bill untuk <span className="font-bold text-zinc-800">"{pendingToDelete?.customerName || 'Tanpa Nama'}"</span>?
+            </p>
+          </div>
+          <DialogFooter className="flex flex-row gap-2 pt-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setPendingToDelete(null)}
+              className="flex-1 rounded-xl h-10 text-xs font-bold border-zinc-200"
+            >
+              Batal
+            </Button>
+            <Button 
+              onClick={confirmDeletePendingBill}
+              className="flex-1 rounded-xl h-10 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200"
+            >
+              Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showSuccessDialog} onOpenChange={(open) => {
         setShowSuccessDialog(open);
@@ -728,6 +780,7 @@ interface CartSectionProps {
   pendingTransactions: Transaction[];
   selectedPendingId: string | null;
   loadPendingBill: (t: Transaction) => void;
+  onDeletePendingBill: (t: Transaction, e?: React.MouseEvent) => void;
   resetOrder: () => void;
   handleSaveBill: () => void;
   updateCartQuantity: (id: string, delta: number) => void;
@@ -750,6 +803,7 @@ function CartSection({
   pendingTransactions,
   selectedPendingId,
   loadPendingBill,
+  onDeletePendingBill,
   resetOrder,
   handleSaveBill,
   updateCartQuantity,
@@ -807,20 +861,34 @@ function CartSection({
 
             {pendingTransactions.length > 0 && (
               <div className="space-y-2 pb-2">
-                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Simpanan Bill</p>
+                <div className="flex items-center justify-between ml-1 pr-1">
+                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Simpanan Bill ({pendingTransactions.length})</p>
+                </div>
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
                   {pendingTransactions.map(t => (
-                    <button
+                    <div
                       key={t.id}
                       onClick={() => loadPendingBill(t)}
-                      className={`flex-shrink-0 px-3 py-2 rounded-xl text-[10px] font-bold border transition-all whitespace-nowrap shadow-sm ${
+                      className={`flex-shrink-0 flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all whitespace-nowrap shadow-sm cursor-pointer group ${
                         selectedPendingId === t.id 
                           ? 'bg-zinc-900 text-white border-zinc-900 shadow-md' 
-                          : 'bg-white text-zinc-500 border-zinc-100 hover:border-zinc-300'
+                          : 'bg-white text-zinc-600 border-zinc-100 hover:border-zinc-300'
                       }`}
                     >
-                      {t.customerName || 'No Name'}
-                    </button>
+                      <span className="truncate max-w-[120px]">{t.customerName || 'Tanpa Nama'}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => onDeletePendingBill(t, e)}
+                        className={`p-1 rounded-lg transition-all ${
+                          selectedPendingId === t.id
+                            ? 'text-zinc-400 hover:text-rose-300 hover:bg-white/10'
+                            : 'text-zinc-300 hover:text-rose-500 hover:bg-rose-50'
+                        }`}
+                        title={`Hapus bill ${t.customerName || 'Tanpa Nama'}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

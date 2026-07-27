@@ -883,14 +883,55 @@ export default function ActivityPage() {
     );
   };
 
+  const isSameDay = (d1: Date, d2: Date) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  };
+
+  const todayDate = new Date();
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+
+  const isTodaySelected = isSameDay(selectedDate, todayDate);
+  const isYesterdaySelected = isSameDay(selectedDate, yesterdayDate);
+
   return (
     <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl md:text-5xl font-light tracking-tighter text-zinc-900 mb-2">Aktifitas</h1>
-          <div className="flex flex-wrap items-center gap-3 mt-1.5">
-            <div className="flex items-center gap-2 p-1.5 px-3 bg-zinc-100 rounded-full text-zinc-500">
-               <Calendar className="w-4 h-4" />
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const y = new Date();
+                y.setDate(y.getDate() - 1);
+                setSelectedDate(y);
+              }}
+              className={`rounded-full h-8 text-xs font-medium border-zinc-100 transition-all ${
+                isYesterdaySelected
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm'
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+            >
+              Kemarin
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(new Date())}
+              className={`rounded-full h-8 text-xs font-medium border-zinc-100 transition-all ${
+                isTodaySelected
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm'
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+            >
+              Hari Ini
+            </Button>
+            <div className="flex items-center gap-2 p-1.5 px-3 bg-white rounded-full text-zinc-500 border border-zinc-100">
+               <Calendar className="w-4 h-4 text-zinc-400" />
                <input 
                 type="date" 
                 className="bg-transparent border-none text-[10px] md:text-xs font-bold uppercase tracking-tight focus:outline-none" 

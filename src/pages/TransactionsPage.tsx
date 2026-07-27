@@ -17,7 +17,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { format, isWithinInterval, startOfDay, endOfDay, parseISO, startOfWeek, endOfWeek } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay, parseISO, startOfWeek, endOfWeek, subDays } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { 
   History, 
@@ -151,17 +151,24 @@ export default function TransactionsPage() {
   const bestSellingItem = Object.entries(itemStats)
     .sort(([, a], [, b]) => (b as number) - (a as number))[0];
 
+  const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  const thisWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  const thisWeekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
   const setToday = () => {
     const today = format(new Date(), 'yyyy-MM-dd');
     setStartDate(today);
     setEndDate(today);
   };
 
+  const setYesterday = () => {
+    setStartDate(yesterdayStr);
+    setEndDate(yesterdayStr);
+  };
+
   const setThisWeek = () => {
-    const start = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const end = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    setStartDate(start);
-    setEndDate(end);
+    setStartDate(thisWeekStart);
+    setEndDate(thisWeekEnd);
   };
 
   const handlePrint = () => {
@@ -176,7 +183,23 @@ export default function TransactionsPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            className="rounded-full bg-white border-zinc-100 text-zinc-600 hover:bg-zinc-50 h-8"
+            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+              startDate === yesterdayStr && endDate === yesterdayStr 
+                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                : 'bg-white text-zinc-600 hover:bg-zinc-50'
+            }`}
+            onClick={setYesterday}
+          >
+            Kemarin
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+              startDate === today && endDate === today 
+                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                : 'bg-white text-zinc-600 hover:bg-zinc-50'
+            }`}
             onClick={setToday}
           >
             Hari Ini
@@ -184,7 +207,11 @@ export default function TransactionsPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            className="rounded-full bg-white border-zinc-100 text-zinc-600 hover:bg-zinc-50 h-8"
+            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+              startDate === thisWeekStart && endDate === thisWeekEnd 
+                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                : 'bg-white text-zinc-600 hover:bg-zinc-50'
+            }`}
             onClick={setThisWeek}
           >
             Minggu Ini

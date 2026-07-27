@@ -341,6 +341,13 @@ export const transactionsService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, TRANSACTIONS_COL);
     }
+  },
+  delete: async (id: string) => {
+    try {
+      await deleteDoc(doc(db, TRANSACTIONS_COL, id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${TRANSACTIONS_COL}/${id}`);
+    }
   }
 };
 
