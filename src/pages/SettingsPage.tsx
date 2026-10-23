@@ -80,7 +80,7 @@ export default function SettingsPage() {
 
   const [whitelistEmail, setWhitelistEmail] = useState('');
   const [whitelistList, setWhitelistList] = useState<{ id: string; email: string; addedAt?: any }[]>([]);
-  const isRootAdmin = auth.currentUser?.email === 'cssbagas@gmail.com';
+  const isRootAdmin = auth.currentUser?.email === 'cssbagas@gmail.com' || auth.currentUser?.email?.startsWith('admin@');
 
   const fetchWhitelist = async () => {
     if (isRootAdmin) {

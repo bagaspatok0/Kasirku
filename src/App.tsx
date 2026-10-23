@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { auth, loginWithGoogle, logout } from '@/lib/firebase';
+import { useState, useEffect, FormEvent } from 'react';
+import { auth, loginWithUsername, loginWithGoogle, logout } from '@/lib/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { whitelistService } from '@/lib/data-service';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Toaster } from '@/components/ui/sonner';
 import { 
   Store, 
@@ -13,7 +14,12 @@ import {
   Menu,
   Settings as SettingsIcon,
   Activity,
-  TrendingUp
+  TrendingUp,
+  Lock,
+  Eye,
+  EyeOff,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import CashierPage from '@/pages/CashierPage';
@@ -33,8 +39,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState<Page>('cashier');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Username & Password testing login state
+  const [usernameInput, setUsernameInput] = useState('kasir');
+  const [passwordInput, setPasswordInput] = useState('kasir123');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -54,18 +65,47 @@ export default function App() {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
-  const handleLogin = async () => {
-    try {
-      await loginWithGoogle();
-      toast.success("Berhasil masuk!");
-    } catch (error) {
-      toast.error("Gagal masuk. Silakan coba lagi.");
+  const handleUsernameLogin = async (e?: FormEvent, customUser?: string, customPass?: string) => {
+    if (e) e.preventDefault();
+    const u = customUser !== undefined ? customUser : usernameInput;
+    const p = customPass !== undefined ? customPass : passwordInput;
+
+    const trimmedUser = u.trim();
+    if (!trimmedUser) {
+      toast.error("Silakan masukkan username");
+      return;
     }
+    if (!p) {
+      toast.error("Silakan masukkan password");
+      return;
+    }
+    if (p.length < 6) {
+      toast.error("Password minimal 6 karakter");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await loginWithUsername(trimmedUser, p);
+      localStorage.setItem('active_cashier_name', trimmedUser);
+      toast.success(`Berhasil masuk sebagai ${trimmedUser}`);
+    } catch (error: any) {
+      toast.error(error?.message || "Gagal masuk. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickLogin = (u: string, p: string) => {
+    setUsernameInput(u);
+    setPasswordInput(p);
+    handleUsernameLogin(undefined, u, p);
   };
 
   const handleLogout = async () => {
     try {
       await logout();
+      localStorage.removeItem('active_cashier_name');
       toast.success("Berhasil keluar.");
     } catch (error) {
       toast.error("Gagal keluar.");
@@ -122,21 +162,133 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#F5F5F5] font-sans">
-        <div className="max-w-md w-full p-10 bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-zinc-100 flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mb-8 rotate-3">
-            <Store className="w-10 h-10 text-white" />
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-b from-zinc-50 via-zinc-100 to-zinc-200/60 p-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] border border-zinc-200/80 p-8 md:p-10 flex flex-col">
+          {/* Header */}
+          <div className="flex flex-col items-center text-center mb-7">
+            <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-zinc-900/10 rotate-3 transition-transform hover:rotate-0">
+              <Store className="w-8 h-8 text-white" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-semibold mb-2.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Mode Pengujian Kasir
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">{storeInfo.name}</h1>
+            <p className="text-zinc-500 text-sm mt-1.5">
+              Silakan masuk dengan username & password untuk menguji aplikasi kasir.
+            </p>
           </div>
-          <h1 className="text-4xl font-light tracking-tight text-zinc-900 mb-3">{storeInfo.name}</h1>
-          <p className="text-zinc-500 mb-10 leading-relaxed text-lg">
-            Sistem Kasir modern yang mudah digunakan untuk mengelola bisnis Anda.
-          </p>
-          <Button 
-            onClick={handleLogin}
-            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white rounded-full py-7 text-lg font-medium transition-all transform active:scale-95 shadow-lg"
-          >
-            Masuk dengan Google
-          </Button>
+
+          {/* Login Form */}
+          <form onSubmit={handleUsernameLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-700 uppercase tracking-wider block">
+                Username
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <Input
+                  type="text"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="Contoh: kasir atau admin"
+                  className="pl-10 h-12 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white text-base"
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-700 uppercase tracking-wider block">
+                  Password
+                </label>
+                <span className="text-[11px] text-zinc-400">Min. 6 karakter</span>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Masukkan password"
+                  className="pl-10 pr-10 h-12 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white text-base"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-400 hover:text-zinc-600 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-base shadow-md transition-all active:scale-[0.98] mt-2 flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Memproses Masuk...</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk ke Kasir</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
+          </form>
+
+          {/* Quick Test Accounts Presets */}
+          <div className="mt-6 pt-5 border-t border-zinc-100">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                Akun Testing Siap Pakai:
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('kasir', 'kasir123')}
+                disabled={isSubmitting}
+                className="p-3 rounded-xl border border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-zinc-900 group-hover:text-zinc-950">kasir</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-medium px-1.5 py-0.5 rounded group-hover:bg-zinc-900 group-hover:text-white transition-colors">Default</span>
+                </div>
+                <span className="text-[11px] text-zinc-400 block mt-0.5">pwd: kasir123</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('admin', 'admin123')}
+                disabled={isSubmitting}
+                className="p-3 rounded-xl border border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-zinc-900 group-hover:text-zinc-950">admin</span>
+                  <span className="text-[10px] bg-zinc-100 text-zinc-600 font-medium px-1.5 py-0.5 rounded group-hover:bg-zinc-900 group-hover:text-white transition-colors">Admin</span>
+                </div>
+                <span className="text-[11px] text-zinc-400 block mt-0.5">pwd: admin123</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-zinc-400 text-center mt-3 leading-relaxed">
+              * Bebas mengetik username & password baru apa saja (min. 6 karakter). Akun baru akan otomatis dibuatkan untuk pengujian.
+            </p>
+          </div>
         </div>
         <Toaster position="top-center" />
       </div>
@@ -176,17 +328,19 @@ export default function App() {
         </div>
 
         <div className="p-6 border-t border-zinc-50">
-          <div className="flex items-center gap-4 px-2 mb-6 p-3 rounded-2xl bg-zinc-50/50 border border-zinc-100">
+          <div className="flex items-center gap-3 px-2 mb-6 p-3 rounded-2xl bg-zinc-50 border border-zinc-100">
             {user.photoURL ? (
               <img src={user.photoURL} alt={user.displayName || 'User'} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
             ) : (
-              <div className="w-10 h-10 bg-zinc-200 rounded-full flex items-center justify-center">
-                <UserIcon className="w-5 h-5 text-zinc-500" />
+              <div className="w-10 h-10 bg-zinc-900 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-sm">
+                {(user.displayName || user.email?.split('@')[0] || 'K').slice(0, 2).toUpperCase()}
               </div>
             )}
             <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-semibold text-zinc-900 truncate">{user.displayName || 'User'}</span>
-              <span className="text-[10px] text-zinc-400 truncate uppercase mt-0.5 tracking-wider">{user.email}</span>
+              <span className="text-sm font-semibold text-zinc-900 truncate">{user.displayName || user.email?.split('@')[0] || 'Kasir'}</span>
+              <span className="text-[10px] text-zinc-500 font-medium truncate mt-0.5 tracking-wider">
+                {user.email?.endsWith('@kasirku.local') ? 'Kasir Testing' : user.email}
+              </span>
             </div>
           </div>
           <Button 
@@ -252,17 +406,19 @@ export default function App() {
                     <NavContent />
                   </div>
                   <div className="p-6 border-t border-zinc-50">
-                    <div className="flex items-center gap-4 px-2 mb-6 p-3 rounded-2xl bg-zinc-50/50 border border-zinc-100">
+                    <div className="flex items-center gap-3 px-2 mb-6 p-3 rounded-2xl bg-zinc-50 border border-zinc-100">
                       {user.photoURL ? (
                         <img src={user.photoURL} alt={user.displayName || 'User'} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
                       ) : (
-                        <div className="w-10 h-10 bg-zinc-200 rounded-full flex items-center justify-center">
-                          <UserIcon className="w-5 h-5 text-zinc-500" />
+                        <div className="w-10 h-10 bg-zinc-900 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-sm">
+                          {(user.displayName || user.email?.split('@')[0] || 'K').slice(0, 2).toUpperCase()}
                         </div>
                       )}
                       <div className="flex flex-col overflow-hidden">
-                        <span className="text-sm font-semibold text-zinc-900 truncate">{user.displayName || 'User'}</span>
-                        <span className="text-[10px] text-zinc-400 truncate uppercase mt-0.5 tracking-wider">{user.email}</span>
+                        <span className="text-sm font-semibold text-zinc-900 truncate">{user.displayName || user.email?.split('@')[0] || 'Kasir'}</span>
+                        <span className="text-[10px] text-zinc-500 font-medium truncate mt-0.5 tracking-wider">
+                          {user.email?.endsWith('@kasirku.local') ? 'Kasir Testing' : user.email}
+                        </span>
                       </div>
                     </div>
                     <Button 

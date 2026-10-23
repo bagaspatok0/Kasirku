@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isOwner(userId) {
@@ -136,7 +136,7 @@ service cloud.firestore {
 
     match /whitelist/{email} {
       allow get: if isSignedIn();
-      allow list, write: if isSignedIn() && request.auth.token.email == 'cssbagas@gmail.com';
+      allow list, write: if isSignedIn() && (request.auth.token.email == 'cssbagas@gmail.com' || request.auth.token.email.matches('admin@.*'));
     }
   }
 }
