@@ -1326,6 +1326,9 @@ export default function SettingsPage() {
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('products')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('products')}
             >
@@ -1341,6 +1344,9 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('revenue')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('revenue')}
             >
@@ -1356,6 +1362,9 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('profile')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('profile')}
             >
@@ -1371,6 +1380,9 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('display')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('display')}
             >
@@ -1386,6 +1398,9 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('cashier_accounts')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('cashier_accounts')}
             >
@@ -1401,6 +1416,9 @@ export default function SettingsPage() {
             </Card>
 
             <Card 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setActiveSection('store')}
               className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
               onClick={() => setActiveSection('store')}
             >
@@ -1417,6 +1435,9 @@ export default function SettingsPage() {
 
             {isRootAdmin && (
               <Card 
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && setActiveSection('whitelist')}
                 className="border-zinc-100 hover:border-zinc-300 transition-all cursor-pointer group rounded-3xl overflow-hidden shadow-sm hover:shadow-md"
                 onClick={() => setActiveSection('whitelist')}
               >

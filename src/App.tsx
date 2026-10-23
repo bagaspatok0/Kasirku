@@ -136,7 +136,7 @@ export default function App() {
         onClick={() => { setActivePage('activity'); setIsMobileMenuOpen(false); }}
       >
         <Activity className="w-6 h-6" />
-        Aktifitas
+        Aktivitas
       </Button>
       <Button 
         variant={activePage === 'settings' ? 'secondary' : 'ghost'} 

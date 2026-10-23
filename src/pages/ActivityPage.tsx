@@ -900,7 +900,7 @@ export default function ActivityPage() {
     <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl md:text-5xl font-light tracking-tighter text-zinc-900 mb-2">Aktifitas</h1>
+          <h1 className="text-3xl md:text-5xl font-light tracking-tighter text-zinc-900 mb-2">Aktivitas</h1>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <Button
               variant="outline"
