@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Printer } from 'lucide-react';
 import { getStoreInfo } from '@/lib/utils';
+import { WeeklySalesChart } from '@/components/WeeklySalesChart';
 
 export default function TransactionsPage() {
   const storeInfo = getStoreInfo();
@@ -297,6 +298,9 @@ export default function TransactionsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Grafik Ringkasan Penjualan Mingguan */}
+      <WeeklySalesChart transactions={transactions} />
 
       <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden p-3 md:p-5 lg:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">

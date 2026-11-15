@@ -410,8 +410,6 @@ export const whitelistService = {
       if (!email) return false;
       // Always allow the master admin
       if (email === 'cssbagas@gmail.com') return true;
-      // Always allow username & password testing accounts
-      if (email.toLowerCase().endsWith('@kasirku.local')) return true;
       
       const docRef = doc(db, 'whitelist', email.toLowerCase());
       const snapshot = await getDoc(docRef);
