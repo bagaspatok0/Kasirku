@@ -23,13 +23,12 @@ import {
   History, 
   TrendingUp, 
   ShoppingBag, 
-  CalendarDays,
   FileText,
   Search,
-  Users,
   X,
   Ban,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 import { transactionsService, productsService } from '@/lib/data-service';
 import { Transaction, Product } from '@/types';
@@ -52,6 +51,7 @@ export default function TransactionsPage() {
   const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [transactionToVoid, setTransactionToVoid] = useState<Transaction | null>(null);
+  const [activeSection, setActiveSection] = useState<'history' | 'summary'>('history');
 
   useEffect(() => {
     const unsubTrans = transactionsService.getAll(setTransactions);
@@ -153,6 +153,8 @@ export default function TransactionsPage() {
     .sort(([, a], [, b]) => (b as number) - (a as number))[0];
 
   const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  const last7Start = format(subDays(new Date(), 6), 'yyyy-MM-dd');
+  const last30Start = format(subDays(new Date(), 29), 'yyyy-MM-dd');
   const thisWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const thisWeekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
@@ -172,137 +174,224 @@ export default function TransactionsPage() {
     setEndDate(thisWeekEnd);
   };
 
+  const setLast7Days = () => {
+    setStartDate(last7Start);
+    setEndDate(today);
+  };
+
+  const setLast30Days = () => {
+    setStartDate(last30Start);
+    setEndDate(today);
+  };
+
+  const setAllDates = () => {
+    setStartDate('');
+    setEndDate('');
+  };
+
   const handlePrint = () => {
     window.print();
   };
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <h1 className="text-3xl font-light tracking-tight text-zinc-900">Dashboard Penjualan</h1>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
-              startDate === yesterdayStr && endDate === yesterdayStr 
-                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
-                : 'bg-white text-zinc-600 hover:bg-zinc-50'
-            }`}
-            onClick={setYesterday}
-          >
-            Kemarin
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
-              startDate === today && endDate === today 
-                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
-                : 'bg-white text-zinc-600 hover:bg-zinc-50'
-            }`}
-            onClick={setToday}
-          >
-            Hari Ini
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
-              startDate === thisWeekStart && endDate === thisWeekEnd 
-                ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
-                : 'bg-white text-zinc-600 hover:bg-zinc-50'
-            }`}
-            onClick={setThisWeek}
-          >
-            Minggu Ini
-          </Button>
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-zinc-100 ml-1">
-            <span className="text-xs font-semibold text-zinc-400 uppercase">Dari</span>
-            <input 
-              type="date" 
-              className="text-xs bg-transparent border-none outline-none focus:ring-0"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
+            <h1 className="text-3xl font-light tracking-tight text-zinc-900">Dashboard Penjualan</h1>
+            <div className="inline-flex bg-white p-1 rounded-full border border-zinc-100 shadow-sm w-fit">
+              <button
+                onClick={() => setActiveSection('history')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  activeSection === 'history'
+                    ? 'bg-zinc-900 text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                Riwayat Transaksi
+              </button>
+              <button
+                onClick={() => setActiveSection('summary')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  activeSection === 'summary'
+                    ? 'bg-zinc-900 text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Ringkasan Penjualan
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-zinc-100">
-            <span className="text-xs font-semibold text-zinc-400 uppercase">Sampai</span>
-            <input 
-              type="date" 
-              className="text-xs bg-transparent border-none outline-none focus:ring-0"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-          {(startDate || endDate) && (
+
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => { setStartDate(''); setEndDate(''); }}
-              className="rounded-full hover:bg-red-50 text-red-500 w-8 h-8"
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                startDate === yesterdayStr && endDate === yesterdayStr 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setYesterday}
             >
-              <X className="w-3.5 h-3.5" />
+              Kemarin
             </Button>
-          )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                startDate === today && endDate === today 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setToday}
+            >
+              Hari Ini
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                startDate === thisWeekStart && endDate === thisWeekEnd 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setThisWeek}
+            >
+              Minggu Ini
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                startDate === last7Start && endDate === today 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setLast7Days}
+            >
+              7 Hari
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                startDate === last30Start && endDate === today 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setLast30Days}
+            >
+              30 Hari
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`rounded-full border-zinc-100 h-8 text-xs font-medium transition-all ${
+                !startDate && !endDate 
+                  ? 'bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900 shadow-sm' 
+                  : 'bg-white text-zinc-600 hover:bg-zinc-50'
+              }`}
+              onClick={setAllDates}
+            >
+              Semua Tanggal
+            </Button>
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-zinc-100 ml-1">
+              <span className="text-xs font-semibold text-zinc-400 uppercase">Dari</span>
+              <input 
+                type="date" 
+                className="text-xs bg-transparent border-none outline-none focus:ring-0"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-zinc-100">
+              <span className="text-xs font-semibold text-zinc-400 uppercase">Sampai</span>
+              <input 
+                type="date" 
+                className="text-xs bg-transparent border-none outline-none focus:ring-0"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                title="Reset ke Semua Tanggal"
+                onClick={setAllDates}
+                className="rounded-full hover:bg-red-50 text-red-500 w-8 h-8"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-        <Card className="rounded-2xl border-none shadow-sm bg-zinc-900 text-white">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-white/10 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 md:w-5 h-5 text-zinc-100" />
-              </div>
-            </div>
-            <p className="text-zinc-400 text-xs uppercase tracking-wider mb-0.5">Total Penjualan</p>
-            <h2 className="text-xl md:text-2xl font-medium tracking-tight">Rp {totalSales.toLocaleString()}</h2>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-none shadow-sm bg-white">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
-                <History className="w-4 h-4 md:w-5 h-5 text-zinc-900" />
-              </div>
-            </div>
-            <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Total Transaksi</p>
-            <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900">{completedTransactions.length}</h2>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-none shadow-sm bg-white sm:col-span-2 lg:col-span-1">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
-                <ShoppingBag className="w-4 h-4 md:w-5 h-5 text-zinc-900" />
-              </div>
-            </div>
-            <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Item Terjual</p>
-            <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900">{totalItemsSold} <span className="text-xs md:text-sm font-light text-zinc-400">pcs</span></h2>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-none shadow-sm bg-white sm:col-span-2 lg:col-span-3">
-          <CardContent className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
-                <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-amber-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Item Terlaris</p>
-                <h2 className="text-lg md:text-2xl font-medium tracking-tight text-zinc-900 truncate">
-                  {bestSellingItem ? `${bestSellingItem[0]} (${bestSellingItem[1]} terjual)` : 'Belum ada data'}
-                </h2>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {activeSection === 'summary' ? (
+        <WeeklySalesChart
+          transactions={transactions}
+          products={products}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            <Card className="rounded-2xl border-none shadow-sm bg-zinc-900 text-white">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 md:w-10 md:h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 md:w-5 h-5 text-zinc-100" />
+                  </div>
+                </div>
+                <p className="text-zinc-400 text-xs uppercase tracking-wider mb-0.5">Total Penjualan</p>
+                <h2 className="text-xl md:text-2xl font-medium tracking-tight">Rp {totalSales.toLocaleString()}</h2>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-none shadow-sm bg-white">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 md:w-10 md:h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
+                    <History className="w-4 h-4 md:w-5 h-5 text-zinc-900" />
+                  </div>
+                </div>
+                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Total Transaksi</p>
+                <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900">{completedTransactions.length}</h2>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-none shadow-sm bg-white sm:col-span-2 lg:col-span-1">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 md:w-10 md:h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
+                    <ShoppingBag className="w-4 h-4 md:w-5 h-5 text-zinc-900" />
+                  </div>
+                </div>
+                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Item Terjual</p>
+                <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900">{totalItemsSold} <span className="text-xs md:text-sm font-light text-zinc-400">pcs</span></h2>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl border-none shadow-sm bg-white sm:col-span-2 lg:col-span-3">
+              <CardContent className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-amber-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Item Terlaris</p>
+                    <h2 className="text-lg md:text-2xl font-medium tracking-tight text-zinc-900 truncate">
+                      {bestSellingItem ? `${bestSellingItem[0]} (${bestSellingItem[1]} terjual)` : 'Belum ada data'}
+                    </h2>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Grafik Ringkasan Penjualan Mingguan */}
-      <WeeklySalesChart transactions={transactions} />
-
-      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden p-3 md:p-5 lg:p-6">
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden p-3 md:p-5 lg:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
            <h3 className="text-lg md:text-xl font-light tracking-tight px-1 text-center md:text-left">Riwayat Transaksi</h3>
            <div className="relative w-full md:w-72">
@@ -517,6 +606,8 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+        </>
+      )}
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-md rounded-3xl border-none p-0 overflow-hidden bg-zinc-50/50 backdrop-blur-xl">
